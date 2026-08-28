@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MERCH — карта лояльности</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#111; color:#f5f5f5; margin:0; }
+    .wrap { max-width: 420px; margin: 0 auto; padding: 32px 20px 48px; text-align:center; }
+    h1 { letter-spacing: .28em; font-weight: 600; margin-bottom: 8px; }
+    .card { background:#1a1a1a; border-radius: 16px; padding: 24px 16px; }
+    .points { font-size: 48px; font-weight: 600; margin: 8px 0 0; }
+    .label { color:#b4b4b4; font-size: 14px; }
+    .name { margin-top: 8px; color:#ddd; }
+    img.qr { width: 220px; height: 220px; background:#fff; padding:8px; border-radius:8px; margin: 16px 0; }
+    .code { font-family: ui-monospace, monospace; letter-spacing: .08em; }
+    a.btn { display:block; margin: 12px 0; padding: 14px; border-radius: 10px; text-decoration:none; font-weight:600; }
+    a.apple { background:#f5f5f5; color:#111; }
+    a.google { background:#1a73e8; color:#fff; }
+    .back { color:#aaa; font-size:13px; line-height:1.45; text-align:left; margin-top:24px; }
+    a.t { color:#ddd; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>MERCH</h1>
+    <div class="card">
+      <div class="label">Баллы</div>
+      <div class="points">{{.Points}}</div>
+      {{if .Name}}<div class="name">{{.Name}}</div>{{end}}
+      <img class="qr" alt="QR карты MERCH" src="{{.QRDataURI}}">
+      <div class="code">{{.Barcode}}</div>
+    </div>
+    {{if .ShowApple}}
+      <a class="btn apple" href="{{.AppleURL}}">Добавить в Apple Wallet</a>
+    {{end}}
+    {{if .ShowGoogle}}
+      {{if .GoogleURL}}
+        <a class="btn google" href="{{.GoogleURL}}">Save to phone</a>
+      {{else}}
+        <p class="back">Google Wallet не настроен на сервере. Покажите QR на кассе.</p>
+      {{end}}
+    {{end}}
+    {{if eq .Platform "web"}}
+      <p class="back">Сохраните эту страницу или покажите QR на кассе. На Huawei и устройствах без Google Play Services карта Wallet недоступна — касса сканирует этот же QR.</p>
+    {{end}}
+    <p class="back">{{.BackText}} <a class="t" href="{{.TermsURL}}">Полные правила</a></p>
+  </div>
+</body>
+</html>

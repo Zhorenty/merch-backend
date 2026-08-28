@@ -1,0 +1,198 @@
+openapi: 3.0.3
+info:
+  title: MERCH Loyalty API
+  version: "1.0"
+  description: |
+    Backend for MERCH store cards (TZ §9). Cashier JWT TTL 12h.
+    Errors: `{ "error": { "code": "...", "message": "..." } }`.
+servers:
+  - url: http://localhost:8080
+paths:
+  /public/enroll:
+    post:
+      summary: Issue a card (rate limited)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                phone: { type: string }
+      responses:
+        "200":
+          description: customer_id, barcode, apple_url, google_save_url, add_page
+  /card/add/{id}:
+    get:
+      summary: Issuance page (Apple / Save to phone / web QR)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+  /public/passes/apple/{id}.pkpass:
+    get:
+      summary: Download .pkpass
+      responses:
+        "200":
+          description: application/vnd.apple.pkpass
+  /cashier/login:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login: { type: string }
+                password: { type: string }
+                pin: { type: string }
+  /cashier/lookup:
+    post:
+      security: [{ cashierBearer: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [barcode]
+              properties:
+                barcode: { type: string }
+  /cashier/quote-redeem:
+    post:
+      security: [{ cashierBearer: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [barcode, receipt_amount_rub, requested_points]
+              properties:
+                barcode: { type: string }
+                receipt_amount_rub: { type: integer }
+                requested_points: { type: integer }
+  /cashier/commit:
+    post:
+      security: [{ cashierBearer: [] }]
+      description: Atomic redeem+earn. Repeat receipt_id returns original result.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [receipt_id, barcode, receipt_amount_rub, redeem_points]
+              properties:
+                receipt_id: { type: string, format: uuid }
+                barcode: { type: string }
+                receipt_amount_rub: { type: integer }
+                redeem_points: { type: integer }
+                store_id: { type: string }
+  /cashier/refund:
+    post:
+      security: [{ cashierBearer: [] }]
+      description: shift_lead or admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [receipt_id]
+              properties:
+                receipt_id: { type: string, format: uuid }
+  /cashier/app-version:
+    get:
+      responses:
+        "200":
+          description: min_supported, download_url
+  /cashier/enroll:
+    post:
+      security: [{ cashierBearer: [] }]
+  /admin/login:
+    post: {}
+  /admin/adjust:
+    post:
+      security: [{ adminBearer: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [delta, reason]
+              properties:
+                customer_id: { type: string }
+                barcode: { type: string }
+                delta: { type: integer }
+                reason: { type: string }
+  /admin/staff:
+    get:
+      security: [{ adminBearer: [] }]
+    post:
+      security: [{ adminBearer: [] }]
+  /admin/staff/{id}:
+    patch:
+      security: [{ adminBearer: [] }]
+  /admin/stores:
+    get:
+      security: [{ adminBearer: [] }]
+    post:
+      security: [{ adminBearer: [] }]
+  /admin/stores/{id}:
+    patch:
+      security: [{ adminBearer: [] }]
+    delete:
+      security: [{ adminBearer: [] }]
+  /admin/loyalty-settings:
+    get:
+      security: [{ adminBearer: [] }]
+    put:
+      security: [{ adminBearer: [] }]
+  /admin/customers:
+    get:
+      security: [{ adminBearer: [] }]
+  /admin/customers/{id}/block:
+    post:
+      security: [{ adminBearer: [] }]
+  /admin/customers/{id}/unblock:
+    post:
+      security: [{ adminBearer: [] }]
+  /passes/v1/devices/{deviceLibraryId}/registrations/{passType}/{serial}:
+    post:
+      description: PassKit register
+    delete:
+      description: PassKit unregister
+  /passes/v1/devices/{deviceLibraryId}/registrations/{passType}:
+    get:
+      description: passesUpdatedSince
+  /passes/v1/passes/{passType}/{serial}:
+    get:
+      description: latest pkpass
+  /passes/v1/log:
+    post: {}
+components:
+  securitySchemes:
+    cashierBearer:
+      type: http
+      scheme: bearer
+    adminBearer:
+      type: http
+      scheme: bearer
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - INSUFFICIENT_POINTS
+                - BELOW_MIN_REDEEM
+                - EXCEEDS_RECEIPT_SHARE
+                - CUSTOMER_NOT_FOUND
+                - CUSTOMER_BLOCKED
+                - DUPLICATE_RECEIPT
+                - STAFF_FORBIDDEN
+            message: { type: string }

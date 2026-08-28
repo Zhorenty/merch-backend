@@ -1,0 +1,41 @@
+# Binaries
+/bin/
+/api
+/merch-api
+*.exe
+*.test
+*.out
+
+# Data
+/data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets — never commit real keys or certs
+.env
+.env.local
+*.p12
+*.p8
+*.pem
+*.cer
+*.key
+google-credentials.json
+*-credentials.json
+certs/
+secrets/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local-only agent notes (not for remote)
+/AGENTS.md
+/.cursor/
+
+# Go
+vendor/
+coverage.out
+coverage.html

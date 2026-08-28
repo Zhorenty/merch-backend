@@ -1,0 +1,7 @@
+.git
+data
+*.db
+.env
+certs
+secrets
+bin

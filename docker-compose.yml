@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: merch
+      POSTGRES_PASSWORD: merch
+      POSTGRES_DB: merch
+    ports:
+      - "5432:5432"
+    volumes:
+      - merch_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merch -d merch"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      HTTP_ADDR: ":8080"
+      DATABASE_URL: postgres://merch:merch@postgres:5432/merch?sslmode=disable
+      API_BASE_URL: http://localhost:8080
+      PUBLIC_BASE_URL: http://localhost:8080
+      CASHIER_JWT_SECRET: change-me-cashier
+      ADMIN_JWT_SECRET: change-me-admin
+      ADMIN_BOOTSTRAP_LOGIN: admin
+      ADMIN_BOOTSTRAP_PASSWORD: changeme
+      ADMIN_BOOTSTRAP_NAME: Админ
+      TERMS_URL: https://example.com/loyalty-terms
+      SUPPORT_CONTACT: Telegram @merch
+      APP_MIN_SUPPORTED: "1.0.0"
+      APP_DOWNLOAD_URL: http://localhost:8080/static/merch-kassa.apk
+    volumes:
+      - ./certs:/certs:ro
+
+volumes:
+  merch_pg:
