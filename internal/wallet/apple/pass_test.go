@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"image/png"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"merch/backend/internal/config"
@@ -32,7 +33,8 @@ func TestPassShowsLogoAndBalanceInHeader(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(c.passJSON(cust, 5), &doc); err != nil {
+	back := "1 балл = 1 ₽.\nТочки:\nMERCH — ул. Пример, 1"
+	if err := json.Unmarshal(c.passJSON(cust, 5, back), &doc); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := doc["logoText"]; ok {
@@ -62,8 +64,13 @@ func TestPassShowsLogoAndBalanceInHeader(t *testing.T) {
 	if bonus["label"] != "Бонус" || bonus["value"] != "5%" {
 		t.Fatalf("bonus: %#v", bonus)
 	}
+	backs := card["backFields"].([]any)
+	terms := backs[0].(map[string]any)
+	if terms["label"] != "Условия программы лояльности" || !strings.Contains(terms["value"].(string), "Точки:") {
+		t.Fatalf("back: %#v", terms)
+	}
 
-	raw, err := c.BuildPKPass(t.Context(), cust, 5)
+	raw, err := c.BuildPKPass(t.Context(), cust, 5, back)
 	if err != nil {
 		t.Fatal(err)
 	}

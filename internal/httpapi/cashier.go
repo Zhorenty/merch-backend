@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"time"
 
 	"merch/backend/internal/auth"
 	"merch/backend/internal/loyalty"
@@ -185,6 +186,60 @@ func (s *Server) postCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+type shiftReceiptJSON struct {
+	ReceiptID    string `json:"receipt_id"`
+	CreatedAt    string `json:"created_at"`
+	Barcode      string `json:"barcode"`
+	Name         string `json:"name"`
+	AmountRub    int    `json:"amount_rub"`
+	RedeemPoints int    `json:"redeem_points"`
+	EarnPoints   int    `json:"earn_points"`
+	Status       string `json:"status"`
+	PointsAfter  int    `json:"points_after"`
+}
+
+func (s *Server) getShiftReceipts(w http.ResponseWriter, r *http.Request) {
+	st := staffFrom(r)
+	storeID := st.StoreID
+	if c := claimsFrom(r); c != nil && c.StoreID != "" {
+		storeID = c.StoreID
+	}
+	start, end := store.DayBounds(time.Now())
+	list, err := s.Store.ListStoreReceipts(r.Context(), storeID, start, end)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	out := make([]shiftReceiptJSON, 0, len(list))
+	for _, rec := range list {
+		out = append(out, shiftReceiptJSON{
+			ReceiptID:    rec.ID,
+			CreatedAt:    rec.CreatedAt.UTC().Format(time.RFC3339),
+			Barcode:      rec.Barcode,
+			Name:         rec.Name,
+			AmountRub:    rec.AmountRub,
+			RedeemPoints: rec.RedeemPoints,
+			EarnPoints:   rec.EarnPoints,
+			Status:       rec.Status,
+			PointsAfter:  rec.PointsAfter,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"receipts": out})
+}
+
+func (s *Server) postLogout(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFrom(r)
+	if claims == nil || claims.ID == "" {
+		writeError(w, http.StatusUnauthorized, loyalty.CodeUnauthorized, "Недействительный токен")
+		return
+	}
+	if err := s.Store.RevokeSession(r.Context(), claims.ID); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{})
 }
 
 func (s *Server) postRefund(w http.ResponseWriter, r *http.Request) {

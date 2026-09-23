@@ -20,13 +20,13 @@ type Composite struct {
 
 type Apple interface {
 	Enabled() bool
-	BuildPKPass(ctx context.Context, c store.Customer, earnPercent int) ([]byte, error)
+	BuildPKPass(ctx context.Context, c store.Customer, earnPercent int, back string) ([]byte, error)
 	PushUpdate(ctx context.Context, tokens []string) error
 }
 
 type Google interface {
 	Enabled() bool
-	SaveURL(c store.Customer) (string, error)
+	SaveURL(c store.Customer, back string) (string, error)
 	PatchPoints(ctx context.Context, objectID string, points int) error
 }
 

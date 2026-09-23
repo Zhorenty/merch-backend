@@ -137,6 +137,16 @@ func (s *Server) rateLimit(l *ipLimiter) func(http.Handler) http.Handler {
 }
 
 func (s *Server) requireStaff(kind string, secret string) func(http.Handler) http.Handler {
+	return s.authenticateStaff(kind, secret, false)
+}
+
+// requireStaffAllowRevoked accepts a still-signed JWT after RevokeSession.
+// Logout must answer 200 on a repeat call with the same Bearer.
+func (s *Server) requireStaffAllowRevoked(kind string, secret string) func(http.Handler) http.Handler {
+	return s.authenticateStaff(kind, secret, true)
+}
+
+func (s *Server) authenticateStaff(kind, secret string, allowRevoked bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := bearer(r.Header.Get("Authorization"))
@@ -150,7 +160,11 @@ func (s *Server) requireStaff(kind string, secret string) func(http.Handler) htt
 				return
 			}
 			ok, err := s.Store.SessionValid(r.Context(), claims.ID)
-			if err != nil || !ok {
+			if err != nil {
+				writeErr(w, err)
+				return
+			}
+			if !ok && !allowRevoked {
 				writeError(w, http.StatusUnauthorized, loyalty.CodeUnauthorized, "Сессия отозвана")
 				return
 			}
@@ -169,6 +183,11 @@ func (s *Server) requireStaff(kind string, secret string) func(http.Handler) htt
 func staffFrom(r *http.Request) store.Staff {
 	st, _ := r.Context().Value(ctxStaff).(store.Staff)
 	return st
+}
+
+func claimsFrom(r *http.Request) *auth.Claims {
+	c, _ := r.Context().Value(ctxClaims).(*auth.Claims)
+	return c
 }
 
 func bearer(h string) string {

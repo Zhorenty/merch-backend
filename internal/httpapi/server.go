@@ -87,12 +87,14 @@ func (s *Server) Handler() http.Handler {
 	})
 
 	r.Get("/loyalty-terms", s.getLoyaltyTerms)
+	r.Get("/privacy", s.getPrivacy)
 	r.Get("/card/add", s.getCardAddLanding)
 	r.Get("/card/add/{id}", s.getCardAdd)
 
 	r.Route("/cashier", func(r chi.Router) {
 		r.Post("/login", s.postCashierLogin)
 		r.Get("/app-version", s.getAppVersion)
+		r.With(s.requireStaffAllowRevoked(authKindCashier(), s.Cfg.CashierJWTSecret)).Post("/logout", s.postLogout)
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireStaff(authKindCashier(), s.Cfg.CashierJWTSecret))
 			r.With(s.rateLimit(s.lookupL)).Post("/lookup", s.postLookup)
@@ -100,11 +102,13 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/commit", s.postCommit)
 			r.Post("/refund", s.postRefund)
 			r.Post("/enroll", s.postCashierEnroll)
+			r.Get("/receipts", s.getShiftReceipts)
 		})
 	})
 
 	r.Route("/admin", func(r chi.Router) {
 		r.Post("/login", s.postAdminLogin)
+		r.With(s.requireStaffAllowRevoked(authKindAdmin(), s.Cfg.AdminJWTSecret)).Post("/logout", s.postLogout)
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireStaff(authKindAdmin(), s.Cfg.AdminJWTSecret))
 			r.Post("/adjust", s.postAdjust)

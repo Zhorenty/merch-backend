@@ -43,6 +43,11 @@ func detectPlatform(r *http.Request) string {
 	return "web"
 }
 
+func (s *Server) getPrivacy(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = s.pages.ExecuteTemplate(w, "privacy.gohtml", nil)
+}
+
 func (s *Server) getLoyaltyTerms(w http.ResponseWriter, r *http.Request) {
 	st := loyalty.DefaultSettings()
 	if m, err := s.Store.SettingsMap(r.Context()); err == nil {
@@ -90,9 +95,10 @@ func (s *Server) getCardAdd(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	_, back := s.programBack(r.Context())
 	googleURL := ""
 	if s.Google != nil {
-		googleURL, _ = s.Google.SaveURL(c)
+		googleURL, _ = s.Google.SaveURL(c, back)
 	}
 	p := detectPlatform(r)
 	page := cardPage{
@@ -105,7 +111,7 @@ func (s *Server) getCardAdd(w http.ResponseWriter, r *http.Request) {
 		Platform:   p,
 		TermsURL:   s.Cfg.TermsURL,
 		Support:    s.Cfg.SupportContact,
-		BackText:   "Баллы начисляются с покупок в MERCH и списываются на кассе. Карта — не платёжное средство. Правила может изменить магазин. Вопросы: " + s.Cfg.SupportContact + ".",
+		BackText:   back,
 		ShowApple:  p == "apple",
 		ShowGoogle: p == "google",
 		ShowWeb:    p == "web" || p == "google" || p == "apple",

@@ -29,6 +29,12 @@ paths:
       responses:
         "200":
           description: text/html
+  /privacy:
+    get:
+      summary: Privacy policy and support contact for MERCH Касса (HTML)
+      responses:
+        "200":
+          description: text/html
   /card/add/{id}:
     get:
       summary: Issuance page (Apple / Save to phone / web QR)
@@ -107,6 +113,40 @@ paths:
               required: [receipt_id]
               properties:
                 receipt_id: { type: string, format: uuid }
+  /cashier/receipts:
+    get:
+      security: [{ cashierBearer: [] }]
+      description: |
+        Receipts of the JWT store for the current Moscow calendar day (UTC+3), newest first.
+        Empty list is 200 with receipts: []. Refunded rows use points_after_refund.
+      responses:
+        "200":
+          description: shift receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [receipts]
+                properties:
+                  receipts:
+                    type: array
+                    items:
+                      type: object
+                      required: [receipt_id, created_at, barcode, name, amount_rub, redeem_points, earn_points, status, points_after]
+                      properties:
+                        receipt_id: { type: string, format: uuid }
+                        created_at: { type: string, format: date-time }
+                        barcode: { type: string }
+                        name: { type: string }
+                        amount_rub: { type: integer }
+                        redeem_points: { type: integer }
+                        earn_points: { type: integer }
+                        status: { type: string, enum: [committed, refunded] }
+                        points_after: { type: integer }
+  /cashier/logout:
+    post:
+      security: [{ cashierBearer: [] }]
+      description: Revoke the current cashier session by jti. Empty body. Repeat is 200.
   /cashier/app-version:
     get:
       responses:
@@ -117,6 +157,10 @@ paths:
       security: [{ cashierBearer: [] }]
   /admin/login:
     post: {}
+  /admin/logout:
+    post:
+      security: [{ adminBearer: [] }]
+      description: Revoke the current admin session by jti. Empty body. Repeat is 200.
   /admin/adjust:
     post:
       security: [{ adminBearer: [] }]

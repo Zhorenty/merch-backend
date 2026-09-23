@@ -128,6 +128,26 @@ func (e *env) do(t *testing.T, method, path, token string, body any) *httptest.R
 	return rec
 }
 
+func TestPrivacyPage(t *testing.T) {
+	e := setup(t)
+	rec := e.do(t, http.MethodGet, "/privacy", "", nil)
+	if rec.Code != 200 {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, part := range []string{
+		"Политика конфиденциальности",
+		"Волошин Георгий Сергеевич",
+		"zhorenty@gmail.com",
+		"api.merch.store",
+		"Поддержка",
+	} {
+		if !strings.Contains(body, part) {
+			t.Fatalf("missing %q in %s", part, body)
+		}
+	}
+}
+
 func TestLoyaltyTermsPage(t *testing.T) {
 	e := setup(t)
 	rec := e.do(t, http.MethodGet, "/loyalty-terms", "", nil)
@@ -242,6 +262,201 @@ func TestCommitQuoteRefundHTTP(t *testing.T) {
 	rec = e.do(t, http.MethodGet, "/cashier/app-version", "", nil)
 	if rec.Code != 200 {
 		t.Fatal(rec.Body.String())
+	}
+}
+
+func TestShiftReceiptsAndLogout(t *testing.T) {
+	e := setup(t)
+	leadTok := e.login(t, "/cashier/login", e.lead, "pass", 200)
+	cashTok := e.login(t, "/cashier/login", e.cash, "pass", 200)
+	adminCash := e.login(t, "/cashier/login", e.admin, "pass", 200)
+	adminTok := e.login(t, "/admin/login", e.admin, "pass", 200)
+
+	rec := e.do(t, http.MethodGet, "/cashier/receipts", cashTok, nil)
+	if rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"receipts":[]}` {
+		t.Fatalf("empty shift %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = e.do(t, http.MethodPost, "/public/enroll", "", map[string]string{"name": "Анна", "phone": "+79001112233"})
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	var enrolled struct {
+		CustomerID string `json:"customer_id"`
+		Barcode    string `json:"barcode"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &enrolled)
+	rec = e.do(t, http.MethodPost, "/public/enroll", "", map[string]string{"name": "", "phone": "+79001112244"})
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	var unnamed struct {
+		CustomerID string `json:"customer_id"`
+		Barcode    string `json:"barcode"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &unnamed)
+
+	rec = e.do(t, http.MethodPost, "/admin/adjust", adminTok, map[string]any{
+		"barcode": enrolled.Barcode, "delta": 500, "reason": "seed",
+	})
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+
+	rid := uuid.NewString()
+	rec = e.do(t, http.MethodPost, "/cashier/commit", cashTok, map[string]any{
+		"receipt_id": rid, "barcode": enrolled.Barcode, "receipt_amount_rub": 4500,
+		"redeem_points": 500, "store_id": store.DefaultStoreID(),
+	})
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+
+	start, _ := store.DayBounds(time.Now())
+	otherID := uuid.NewString()
+	if err := e.st.CreateStore(context.Background(), store.StoreRow{
+		ID: otherID, Name: "Другая", CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	staffID := e.staffID(t, e.cash)
+	ctx := context.Background()
+	err := e.st.InTx(ctx, func(tx *store.Tx) error {
+		// SQLite stores time.Time as text. Keep the location UTC so the day filter matches commit rows.
+		if err := tx.InsertReceipt(ctx, store.Receipt{
+			ID: uuid.NewString(), StoreID: store.DefaultStoreID(), StaffID: staffID,
+			CustomerID: unnamed.CustomerID, AmountRub: 100, Status: store.ReceiptCommitted,
+			CreatedAt: start.Add(-time.Second).UTC(),
+		}); err != nil {
+			return err
+		}
+		return tx.InsertReceipt(ctx, store.Receipt{
+			ID: uuid.NewString(), StoreID: otherID, StaffID: staffID,
+			CustomerID: enrolled.CustomerID, AmountRub: 999, Status: store.ReceiptCommitted,
+			CreatedAt: time.Now().UTC(),
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec = e.do(t, http.MethodGet, "/cashier/receipts", cashTok, nil)
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	var listed struct {
+		Receipts []struct {
+			ReceiptID    string `json:"receipt_id"`
+			CreatedAt    string `json:"created_at"`
+			Barcode      string `json:"barcode"`
+			Name         string `json:"name"`
+			AmountRub    int    `json:"amount_rub"`
+			RedeemPoints int    `json:"redeem_points"`
+			EarnPoints   int    `json:"earn_points"`
+			Status       string `json:"status"`
+			PointsAfter  int    `json:"points_after"`
+		} `json:"receipts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Receipts) != 1 {
+		t.Fatalf("shift list %+v", listed.Receipts)
+	}
+	got := listed.Receipts[0]
+	if got.ReceiptID != rid || got.Barcode != enrolled.Barcode || got.Name != "Анна" ||
+		got.AmountRub != 4500 || got.RedeemPoints != 500 || got.EarnPoints != 200 ||
+		got.Status != "committed" || got.PointsAfter != 200 || got.CreatedAt == "" {
+		t.Fatalf("receipt %+v", got)
+	}
+	if _, err := time.Parse(time.RFC3339, got.CreatedAt); err != nil {
+		t.Fatal(err)
+	}
+
+	rec = e.do(t, http.MethodPost, "/cashier/refund", cashTok, map[string]string{"receipt_id": rid})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cashier refund %d %s", rec.Code, rec.Body.String())
+	}
+	var forbidden struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &forbidden)
+	if forbidden.Error.Code != loyalty.CodeStaffForbidden {
+		t.Fatalf("forbidden %+v", forbidden)
+	}
+
+	rec = e.do(t, http.MethodPost, "/cashier/refund", leadTok, map[string]string{"receipt_id": rid})
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	rec = e.do(t, http.MethodGet, "/cashier/receipts", leadTok, nil)
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Receipts) != 1 || listed.Receipts[0].Status != "refunded" || listed.Receipts[0].PointsAfter != 500 {
+		t.Fatalf("after refund %+v", listed.Receipts)
+	}
+
+	rec = e.do(t, http.MethodPost, "/cashier/logout", cashTok, nil)
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	rec = e.do(t, http.MethodPost, "/cashier/logout", cashTok, nil)
+	if rec.Code != 200 {
+		t.Fatalf("repeat logout %d %s", rec.Code, rec.Body.String())
+	}
+	rec = e.do(t, http.MethodGet, "/cashier/receipts", cashTok, nil)
+	assertRevoked(t, rec)
+	rec = e.do(t, http.MethodGet, "/admin/staff", adminTok, nil)
+	if rec.Code != 200 {
+		t.Fatalf("admin session should survive cashier logout: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = e.do(t, http.MethodPost, "/cashier/logout", adminCash, nil)
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	rec = e.do(t, http.MethodPost, "/admin/logout", adminTok, nil)
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	rec = e.do(t, http.MethodPost, "/admin/logout", adminTok, nil)
+	if rec.Code != 200 {
+		t.Fatalf("repeat admin logout %d %s", rec.Code, rec.Body.String())
+	}
+	rec = e.do(t, http.MethodGet, "/admin/staff", adminTok, nil)
+	assertRevoked(t, rec)
+	rec = e.do(t, http.MethodGet, "/cashier/receipts", adminCash, nil)
+	assertRevoked(t, rec)
+}
+
+func (e *env) staffID(t *testing.T, login string) string {
+	t.Helper()
+	st, err := e.st.GetStaffByLogin(context.Background(), login)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st.ID
+}
+
+func assertRevoked(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error.Code != loyalty.CodeUnauthorized || body.Error.Message != "Сессия отозвана" {
+		t.Fatalf("revoked body %+v", body.Error)
 	}
 }
 

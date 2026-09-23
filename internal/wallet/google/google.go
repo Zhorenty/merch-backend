@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -48,7 +49,7 @@ func New(cfg config.Config, log *slog.Logger) *Client {
 
 func (c *Client) Enabled() bool { return c.enabled }
 
-func (c *Client) SaveURL(cust store.Customer) (string, error) {
+func (c *Client) SaveURL(cust store.Customer, back string) (string, error) {
 	if !c.enabled || c.sa == nil {
 		return "", nil
 	}
@@ -63,7 +64,7 @@ func (c *Client) SaveURL(cust store.Customer) (string, error) {
 	if err := json.Unmarshal(raw, &sa); err != nil {
 		return "", err
 	}
-	obj := c.object(cust)
+	obj := c.object(cust, back)
 	claims := jwt.MapClaims{
 		"iss": sa.ClientEmail,
 		"aud": "google",
@@ -122,8 +123,8 @@ func (c *Client) PatchPoints(ctx context.Context, objectID string, points int) e
 	return nil
 }
 
-func (c *Client) object(cust store.Customer) map[string]any {
-	return map[string]any{
+func (c *Client) object(cust store.Customer, back string) map[string]any {
+	obj := map[string]any{
 		"id":          cust.GoogleObjectID,
 		"classId":     c.cfg.GoogleClassID(),
 		"state":       "ACTIVE",
@@ -138,6 +139,14 @@ func (c *Client) object(cust store.Customer) map[string]any {
 			"value": cust.Barcode,
 		},
 	}
+	if strings.TrimSpace(back) != "" {
+		obj["textModulesData"] = []map[string]any{{
+			"id":     "terms_body",
+			"header": "Условия программы лояльности",
+			"body":   back,
+		}}
+	}
+	return obj
 }
 
 func TokenSource(ctx context.Context, jsonPath string) (oauth2.TokenSource, error) {

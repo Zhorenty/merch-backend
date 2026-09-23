@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -57,9 +58,10 @@ func (s *Server) enroll(w http.ResponseWriter, r *http.Request, req enrollReq, s
 			SameSite: http.SameSiteLaxMode,
 		})
 	}
+	_, back := s.programBack(r.Context())
 	googleURL := ""
 	if s.Google != nil {
-		u, err := s.Google.SaveURL(res.Customer)
+		u, err := s.Google.SaveURL(res.Customer, back)
 		if err == nil {
 			googleURL = u
 		}
@@ -99,6 +101,18 @@ func (s *Server) loadCustomer(r *http.Request, id string) (store.Customer, error
 	return c, err
 }
 
+func (s *Server) programBack(ctx context.Context) (loyalty.Settings, string) {
+	st := loyalty.DefaultSettings()
+	if m, err := s.Store.SettingsMap(ctx); err == nil {
+		st = loyalty.ParseSettings(m)
+	}
+	var stores []store.StoreRow
+	if list, err := s.Store.ListStores(ctx); err == nil {
+		stores = list
+	}
+	return st, loyalty.ProgramDescription(st, stores, s.Cfg.SupportContact)
+}
+
 func (s *Server) writePKPass(w http.ResponseWriter, r *http.Request, c store.Customer) {
 	if s.Apple == nil {
 		writeError(w, http.StatusServiceUnavailable, loyalty.CodeInternal, "Apple Wallet не настроен")
@@ -111,11 +125,8 @@ func (s *Server) writePKPass(w http.ResponseWriter, r *http.Request, c store.Cus
 			return
 		}
 	}
-	earn := loyalty.DefaultSettings().EarnPercent
-	if m, err := s.Store.SettingsMap(r.Context()); err == nil {
-		earn = loyalty.ParseSettings(m).EarnPercent
-	}
-	body, err := s.Apple.BuildPKPass(r.Context(), c, earn)
+	st, back := s.programBack(r.Context())
+	body, err := s.Apple.BuildPKPass(r.Context(), c, st.EarnPercent, back)
 	if err != nil {
 		writeErr(w, err)
 		return

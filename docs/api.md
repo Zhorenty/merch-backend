@@ -23,7 +23,7 @@
 | Тело | JSON, UTF-8, лимит **1 МБ** |
 | Касса | `Authorization: Bearer {staff_jwt}`, секрет `CASHIER_JWT_SECRET`, TTL **12 ч** |
 | Админ | отдельный JWT, секрет `ADMIN_JWT_SECRET`, только роль `admin` |
-| Публичные | `/public/*`, `/card/add`, `/loyalty-terms` — без staff-токена |
+| Публичные | `/public/*`, `/card/add`, `/loyalty-terms`, `/privacy` — без staff-токена |
 | Cookie выдачи | `merch_cid` = `customer_id` (HttpOnly, SameSite=Lax) |
 | CORS | только `PUBLIC_BASE_URL` / `API_BASE_URL` или список `CORS_ORIGINS` |
 | HSTS | если TLS или `X-Forwarded-Proto: https` |
@@ -108,6 +108,10 @@ Rate limit. Cookie `merch_cid` и/или тот же телефон **не со�
 
 `google_save_url` пустой, пока нет `GOOGLE_ISSUER_ID` + `GOOGLE_SA_JSON`. Повтор: `created: false`, те же id/barcode.
 
+### `GET /privacy`
+
+HTML политики конфиденциальности приложения MERCH Касса и контакт поддержки. Публичная страница без токена: её URL указывается в App Store в полях Privacy Policy URL и Support URL.
+
 ### `GET /loyalty-terms`
 
 HTML с правилами программы. Цифры берутся из текущих `loyalty_settings` (процент, курс, минимум, доля чека). Ссылка на эту страницу — `TERMS_URL` (по умолчанию `{PUBLIC_BASE_URL}/loyalty-terms`): форма выдачи и оборот Apple-карты.
@@ -135,6 +139,8 @@ User-Agent:
 `Content-Type: application/vnd.apple.pkpass`. `{id}` — `customer_id` или barcode. Есть вариант без суффикса `.pkpass`.
 
 Без Apple-сертификатов zip всё равно отдаётся (stub-подпись). `If-Modified-Since` → 304.
+
+На обороте поле **Условия программы лояльности**: курс (1 балл = `redeem_rate` ₽), процент начисления, минимум и доля списания, список точек из `/admin/stores`. Рядом ссылка `TERMS_URL`. То же текст уходит в Google Wallet (`textModulesData`) и на `/card/add/{id}`.
 
 ---
 
@@ -279,6 +285,36 @@ JWT, роли **`shift_lead` или `admin`**. Иначе `STAFF_FORBIDDEN`.
 
 JWT. То же тело/ответ, что `/public/enroll`, **без** cookie `merch_cid`. Для выдачи с экрана кассы.
 
+### `GET /cashier/receipts`
+
+JWT кассы, любой active staff. Чеки **точки из JWT** за текущие сутки по Москве (календарный день UTC+3, с 00:00 до 00:00), новые сверху. Чужую точку не отдаёт.
+
+Пустой список — `200` и `"receipts": []`. Не 404.
+
+```json
+{
+  "receipts": [
+    {
+      "receipt_id": "11111111-1111-4111-8111-111111111111",
+      "created_at": "2026-09-23T18:04:00Z",
+      "barcode": "MCH-7K2P9Q4R",
+      "name": "Анна",
+      "amount_rub": 4500,
+      "redeem_points": 500,
+      "earn_points": 200,
+      "status": "committed",
+      "points_after": 200
+    }
+  ]
+}
+```
+
+`name` — `customers.display_name`, может быть пустым. `status` — `committed` или `refunded`. У возвращённого чека `points_after` — баланс после возврата (`points_after_refund`).
+
+### `POST /cashier/logout`
+
+Тело пустое. JWT кассы. Отзывает текущую сессию по `jti`. Ответ `200`. Повтор с тем же Bearer тоже `200`. Следующий запрос с этим токеном на остальные ручки кассы — `401` «Сессия отозвана».
+
 ---
 
 ## Админ
@@ -288,6 +324,10 @@ JWT. То же тело/ответ, что `/public/enroll`, **без** cookie `
 ### `POST /admin/login`
 
 Тело как у кассы. Не-admin → `403 STAFF_FORBIDDEN`.
+
+### `POST /admin/logout`
+
+Тело пустое. JWT админки. Отзывает текущую админскую сессию по `jti`. Ответ `200`, повтор тоже `200`. Кассовый токен этой ручкой не гасится: приложение при выходе шлёт оба запроса — сначала `POST /cashier/logout`, потом `POST /admin/logout`.
 
 ### `POST /admin/adjust`
 
