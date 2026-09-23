@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/skip2/go-qrcode"
+	"merch/backend/internal/loyalty"
 )
 
 type cardPage struct {
@@ -40,6 +41,27 @@ func detectPlatform(r *http.Request) string {
 		return "google"
 	}
 	return "web"
+}
+
+func (s *Server) getLoyaltyTerms(w http.ResponseWriter, r *http.Request) {
+	st := loyalty.DefaultSettings()
+	if m, err := s.Store.SettingsMap(r.Context()); err == nil {
+		st = loyalty.ParseSettings(m)
+	}
+	expire := 0
+	if st.ExpireDays != nil && *st.ExpireDays > 0 {
+		expire = *st.ExpireDays
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = s.pages.ExecuteTemplate(w, "terms.gohtml", map[string]any{
+		"EarnPercent":    st.EarnPercent,
+		"RedeemRate":     st.RedeemRate,
+		"RedeemMin":      st.RedeemMin,
+		"RedeemMaxShare": st.RedeemMaxShare,
+		"EarnMinReceipt": st.EarnMinReceipt,
+		"ExpireDays":     expire,
+		"Support":        s.Cfg.SupportContact,
+	})
 }
 
 func (s *Server) getCardAddLanding(w http.ResponseWriter, r *http.Request) {

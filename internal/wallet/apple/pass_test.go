@@ -32,7 +32,7 @@ func TestPassShowsLogoAndBalanceInHeader(t *testing.T) {
 	}
 
 	var doc map[string]any
-	if err := json.Unmarshal(c.passJSON(cust), &doc); err != nil {
+	if err := json.Unmarshal(c.passJSON(cust, 5), &doc); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := doc["logoText"]; ok {
@@ -50,8 +50,20 @@ func TestPassShowsLogoAndBalanceInHeader(t *testing.T) {
 	if len(card["primaryFields"].([]any)) != 0 {
 		t.Fatal("primary field would hide the balance until the pass is opened")
 	}
+	secondary := card["secondaryFields"].([]any)
+	if len(secondary) != 2 {
+		t.Fatalf("secondary fields: %d", len(secondary))
+	}
+	owner := secondary[0].(map[string]any)
+	bonus := secondary[1].(map[string]any)
+	if owner["label"] != "Владелец сваги" || owner["value"] != "Анна" {
+		t.Fatalf("owner: %#v", owner)
+	}
+	if bonus["label"] != "Бонус" || bonus["value"] != "5%" {
+		t.Fatalf("bonus: %#v", bonus)
+	}
 
-	raw, err := c.BuildPKPass(t.Context(), cust, "")
+	raw, err := c.BuildPKPass(t.Context(), cust, 5)
 	if err != nil {
 		t.Fatal(err)
 	}

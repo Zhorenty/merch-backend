@@ -20,7 +20,7 @@ type Composite struct {
 
 type Apple interface {
 	Enabled() bool
-	BuildPKPass(ctx context.Context, c store.Customer, pointsLabel string) ([]byte, error)
+	BuildPKPass(ctx context.Context, c store.Customer, earnPercent int) ([]byte, error)
 	PushUpdate(ctx context.Context, tokens []string) error
 }
 

@@ -78,9 +78,9 @@ func (c *Client) PushUpdate(ctx context.Context, tokens []string) error {
 	return c.Pusher.Push(ctx, tokens)
 }
 
-func (c *Client) BuildPKPass(ctx context.Context, cust store.Customer, _ string) ([]byte, error) {
+func (c *Client) BuildPKPass(ctx context.Context, cust store.Customer, earnPercent int) ([]byte, error) {
 	_ = ctx
-	pass := c.passJSON(cust)
+	pass := c.passJSON(cust, earnPercent)
 	files := map[string][]byte{
 		"pass.json": pass,
 	}
@@ -129,7 +129,7 @@ func (c *Client) BuildPKPass(ctx context.Context, cust store.Customer, _ string)
 	return buf.Bytes(), nil
 }
 
-func (c *Client) passJSON(cust store.Customer) []byte {
+func (c *Client) passJSON(cust store.Customer, earnPercent int) []byte {
 	web := strings.TrimRight(c.Cfg.APIBaseURL, "/") + "/passes/"
 	back := fmt.Sprintf("Баллы начисляются с покупок в MERCH и списываются на кассе. Карта — не платёжное средство. Правила может изменить магазин. Вопросы: %s.", c.Cfg.SupportContact)
 	doc := map[string]any{
@@ -157,17 +157,8 @@ func (c *Client) passJSON(cust store.Customer) []byte {
 				"value":         strconv.Itoa(cust.Points),
 				"changeMessage": "Баланс: %@",
 			}},
-			"primaryFields": []map[string]any{},
-			"secondaryFields": func() []map[string]any {
-				if strings.TrimSpace(cust.DisplayName) == "" {
-					return []map[string]any{}
-				}
-				return []map[string]any{{
-					"key":   "name",
-					"label": "Имя",
-					"value": cust.DisplayName,
-				}}
-			}(),
+			"primaryFields":   []map[string]any{},
+			"secondaryFields": secondaryFields(cust, earnPercent),
 			"backFields": []map[string]any{
 				{"key": "rules", "label": "Правила", "value": back},
 				{"key": "terms", "label": "Полные правила", "value": c.Cfg.TermsURL},
@@ -177,6 +168,24 @@ func (c *Client) passJSON(cust store.Customer) []byte {
 	}
 	b, _ := json.Marshal(doc)
 	return b
+}
+
+func secondaryFields(cust store.Customer, earnPercent int) []map[string]any {
+	fields := []map[string]any{}
+	if name := strings.TrimSpace(cust.DisplayName); name != "" {
+		fields = append(fields, map[string]any{
+			"key":   "name",
+			"label": "Владелец сваги",
+			"value": name,
+		})
+	}
+	fields = append(fields, map[string]any{
+		"key":           "bonus",
+		"label":         "Бонус",
+		"value":         strconv.Itoa(earnPercent) + "%",
+		"textAlignment": "PKTextAlignmentRight",
+	})
+	return fields
 }
 
 type StubSigner struct{}

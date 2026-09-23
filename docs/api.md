@@ -23,7 +23,7 @@
 | Тело | JSON, UTF-8, лимит **1 МБ** |
 | Касса | `Authorization: Bearer {staff_jwt}`, секрет `CASHIER_JWT_SECRET`, TTL **12 ч** |
 | Админ | отдельный JWT, секрет `ADMIN_JWT_SECRET`, только роль `admin` |
-| Публичные | `/public/*`, `/card/add` — без staff-токена |
+| Публичные | `/public/*`, `/card/add`, `/loyalty-terms` — без staff-токена |
 | Cookie выдачи | `merch_cid` = `customer_id` (HttpOnly, SameSite=Lax) |
 | CORS | только `PUBLIC_BASE_URL` / `API_BASE_URL` или список `CORS_ORIGINS` |
 | HSTS | если TLS или `X-Forwarded-Proto: https` |
@@ -107,6 +107,10 @@ Rate limit. Cookie `merch_cid` и/или тот же телефон **не со�
 ```
 
 `google_save_url` пустой, пока нет `GOOGLE_ISSUER_ID` + `GOOGLE_SA_JSON`. Повтор: `created: false`, те же id/barcode.
+
+### `GET /loyalty-terms`
+
+HTML с правилами программы. Цифры берутся из текущих `loyalty_settings` (процент, курс, минимум, доля чека). Ссылка на эту страницу — `TERMS_URL` (по умолчанию `{PUBLIC_BASE_URL}/loyalty-terms`): форма выдачи и оборот Apple-карты.
 
 ### `GET /card/add`
 

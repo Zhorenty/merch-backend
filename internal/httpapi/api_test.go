@@ -128,6 +128,20 @@ func (e *env) do(t *testing.T, method, path, token string, body any) *httptest.R
 	return rec
 }
 
+func TestLoyaltyTermsPage(t *testing.T) {
+	e := setup(t)
+	rec := e.do(t, http.MethodGet, "/loyalty-terms", "", nil)
+	if rec.Code != 200 {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, part := range []string{"правила программы", "5%", "100", "50%", "Telegram @merch", "Срок действия баллов не ограничен"} {
+		if !strings.Contains(body, part) {
+			t.Fatalf("missing %q in %s", part, body)
+		}
+	}
+}
+
 func TestInactiveStaffCannotLogin(t *testing.T) {
 	e := setup(t)
 	e.login(t, "/cashier/login", e.inact, "pass", http.StatusUnauthorized)

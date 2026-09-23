@@ -86,6 +86,7 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/passes/apple/{id}", s.getApplePass)
 	})
 
+	r.Get("/loyalty-terms", s.getLoyaltyTerms)
 	r.Get("/card/add", s.getCardAddLanding)
 	r.Get("/card/add/{id}", s.getCardAdd)
 

@@ -32,7 +32,7 @@ services:
       ADMIN_BOOTSTRAP_LOGIN: admin
       ADMIN_BOOTSTRAP_PASSWORD: changeme
       ADMIN_BOOTSTRAP_NAME: Админ
-      TERMS_URL: https://example.com/loyalty-terms
+      TERMS_URL: http://localhost:8080/loyalty-terms
       SUPPORT_CONTACT: Telegram @merch
       APP_MIN_SUPPORTED: "1.0.0"
       APP_DOWNLOAD_URL: http://localhost:8080/static/merch-kassa.apk

@@ -111,7 +111,11 @@ func (s *Server) writePKPass(w http.ResponseWriter, r *http.Request, c store.Cus
 			return
 		}
 	}
-	body, err := s.Apple.BuildPKPass(r.Context(), c, "Баллы")
+	earn := loyalty.DefaultSettings().EarnPercent
+	if m, err := s.Store.SettingsMap(r.Context()); err == nil {
+		earn = loyalty.ParseSettings(m).EarnPercent
+	}
+	body, err := s.Apple.BuildPKPass(r.Context(), c, earn)
 	if err != nil {
 		writeErr(w, err)
 		return

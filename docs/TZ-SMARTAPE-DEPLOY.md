@@ -149,7 +149,7 @@ SQLite на проде **запрещён**. Только Postgres.
 | `API_BASE_URL` | `https://api.{домен}` без trailing slash |
 | `PUBLIC_BASE_URL` | тот же или публичный URL страницы выдачи |
 | `CORS_ORIGINS` | только реальные origin страницы выдачи (если отдельный домен) |
-| `TERMS_URL` | публичная оферта |
+| `TERMS_URL` | `{API_BASE_URL}/loyalty-terms` (страница отдаётся этим API) |
 | `SUPPORT_CONTACT` | телефон / Telegram магазина |
 | `APP_DOWNLOAD_URL` | закрытая ссылка на APK (тот же nginx `/apk/…` с basic auth или одноразовый URL) |
 

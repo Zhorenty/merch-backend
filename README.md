@@ -52,7 +52,7 @@ See `.env.example`. Secrets and certificate files stay out of git.
 | `CASHIER_JWT_SECRET` / `ADMIN_JWT_SECRET` | **change in prod**; cashier JWT TTL 12h |
 | `APPLE_*` | empty → stub `.pkpass` + log `wallet update skipped` |
 | `GOOGLE_ISSUER_ID` / `GOOGLE_SA_JSON` | empty → no-op adapter |
-| `TERMS_URL` / `SUPPORT_CONTACT` | printed on the pass back |
+| `TERMS_URL` / `SUPPORT_CONTACT` | pass back and enroll page; empty `TERMS_URL` is `{PUBLIC_BASE_URL}/loyalty-terms` |
 
 §16 of the TZ (domain, legal entity, colours) is not blocking: values live in env / admin `loyalty_settings`.
 

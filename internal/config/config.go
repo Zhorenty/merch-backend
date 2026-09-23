@@ -28,7 +28,8 @@ type Config struct {
 	CashierBootstrapPassword string `env:"CASHIER_BOOTSTRAP_PASSWORD"`
 	CashierBootstrapName     string `env:"CASHIER_BOOTSTRAP_NAME" envDefault:"Кассир"`
 
-	TermsURL        string `env:"TERMS_URL" envDefault:"https://example.com/loyalty-terms"`
+	// Empty TERMS_URL becomes {PUBLIC_BASE_URL}/loyalty-terms.
+	TermsURL        string `env:"TERMS_URL"`
 	SupportContact  string `env:"SUPPORT_CONTACT" envDefault:"Telegram @merch"`
 	AppMinSupported string `env:"APP_MIN_SUPPORTED" envDefault:"1.0.0"`
 	AppDownloadURL  string `env:"APP_DOWNLOAD_URL" envDefault:"https://example.com/merch-kassa.apk"`
@@ -60,6 +61,10 @@ func Load() (Config, error) {
 	}
 	c.APIBaseURL = strings.TrimRight(c.APIBaseURL, "/")
 	c.PublicBaseURL = strings.TrimRight(c.PublicBaseURL, "/")
+	terms := strings.TrimSpace(c.TermsURL)
+	if terms == "" || terms == "https://example.com/loyalty-terms" {
+		c.TermsURL = c.PublicBaseURL + "/loyalty-terms"
+	}
 	return c, nil
 }
 
