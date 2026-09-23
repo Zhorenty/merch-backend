@@ -7,13 +7,11 @@ import (
 	"crypto"
 	"crypto/sha1"
 	"crypto/x509"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
 	"log/slog"
 	"os"
 	"strconv"
@@ -25,6 +23,13 @@ import (
 	"merch/backend/internal/config"
 	"merch/backend/internal/store"
 )
+
+// Logo is the wordmark only, narrower than Apple's 160×50pt slot, so the
+// header ("Баланс" and the points) stays clear in the Wallet stack.
+// Strip is the jaws mark, fitted to the store-card slot (375×144pt) without stretching.
+//
+//go:embed assets/icon.png assets/icon@2x.png assets/icon@3x.png assets/logo.png assets/logo@2x.png assets/logo@3x.png assets/strip.png assets/strip@2x.png assets/strip@3x.png
+var passImages embed.FS
 
 type Client struct {
 	Log     *slog.Logger
@@ -79,16 +84,17 @@ func (c *Client) BuildPKPass(ctx context.Context, cust store.Customer, _ string)
 	files := map[string][]byte{
 		"pass.json": pass,
 	}
-	icon := solidPNG(29, 29, parseRGB(c.Cfg.PassBGColor, color.RGBA{26, 26, 26, 255}))
-	logo := solidPNG(160, 50, parseRGB(c.Cfg.PassBGColor, color.RGBA{26, 26, 26, 255}))
-	strip := solidPNG(375, 144, parseRGB(c.Cfg.PassBGColor, color.RGBA{26, 26, 26, 255}))
-	files["icon.png"] = icon
-	files["icon@2x.png"] = solidPNG(58, 58, parseRGB(c.Cfg.PassBGColor, color.RGBA{26, 26, 26, 255}))
-	files["icon@3x.png"] = solidPNG(87, 87, parseRGB(c.Cfg.PassBGColor, color.RGBA{26, 26, 26, 255}))
-	files["logo.png"] = logo
-	files["logo@2x.png"] = solidPNG(320, 100, parseRGB(c.Cfg.PassBGColor, color.RGBA{26, 26, 26, 255}))
-	files["strip.png"] = strip
-	files["strip@2x.png"] = solidPNG(750, 288, parseRGB(c.Cfg.PassBGColor, color.RGBA{26, 26, 26, 255}))
+	for _, name := range []string{
+		"icon.png", "icon@2x.png", "icon@3x.png",
+		"logo.png", "logo@2x.png", "logo@3x.png",
+		"strip.png", "strip@2x.png", "strip@3x.png",
+	} {
+		b, err := passImages.ReadFile("assets/" + name)
+		if err != nil {
+			return nil, err
+		}
+		files[name] = b
+	}
 
 	manifest := map[string]string{}
 	for name, data := range files {
@@ -133,7 +139,6 @@ func (c *Client) passJSON(cust store.Customer) []byte {
 		"serialNumber":        cust.ID,
 		"organizationName":    "MERCH",
 		"description":         "Карта лояльности MERCH",
-		"logoText":            "MERCH",
 		"foregroundColor":     c.Cfg.PassFGColor,
 		"backgroundColor":     c.Cfg.PassBGColor,
 		"labelColor":          c.Cfg.PassLabelColor,
@@ -147,16 +152,12 @@ func (c *Client) passJSON(cust store.Customer) []byte {
 		}},
 		"storeCard": map[string]any{
 			"headerFields": []map[string]any{{
-				"key":   "card",
-				"label": "Карта",
-				"value": cust.Barcode,
-			}},
-			"primaryFields": []map[string]any{{
 				"key":           "points",
-				"label":         "Баллы",
+				"label":         "Баланс",
 				"value":         strconv.Itoa(cust.Points),
 				"changeMessage": "Баланс: %@",
 			}},
+			"primaryFields": []map[string]any{},
 			"secondaryFields": func() []map[string]any {
 				if strings.TrimSpace(cust.DisplayName) == "" {
 					return []map[string]any{}
@@ -255,37 +256,6 @@ func (n noopPusher) Push(ctx context.Context, tokens []string) error {
 		n.log.Info("wallet update skipped", "provider", "apns", "tokens", len(tokens))
 	}
 	return nil
-}
-
-func solidPNG(w, h int, col color.RGBA) []byte {
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			img.SetRGBA(x, y, col)
-		}
-	}
-	var buf bytes.Buffer
-	_ = png.Encode(&buf, img)
-	return buf.Bytes()
-}
-
-func parseRGB(s string, def color.RGBA) color.RGBA {
-	s = strings.TrimSpace(strings.ToLower(s))
-	s = strings.TrimPrefix(s, "rgb(")
-	s = strings.TrimSuffix(s, ")")
-	parts := strings.Split(s, ",")
-	if len(parts) != 3 {
-		return def
-	}
-	var v [3]int
-	for i, p := range parts {
-		n, err := strconv.Atoi(strings.TrimSpace(p))
-		if err != nil {
-			return def
-		}
-		v[i] = n
-	}
-	return color.RGBA{uint8(v[0]), uint8(v[1]), uint8(v[2]), 255}
 }
 
 func NowRFC1123() string { return time.Now().UTC().Format(time.RFC1123) }

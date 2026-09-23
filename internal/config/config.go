@@ -46,9 +46,9 @@ type Config struct {
 	GoogleSAJSON      string `env:"GOOGLE_SA_JSON"`
 	GoogleClassSuffix string `env:"GOOGLE_CLASS_SUFFIX" envDefault:"merch_loyalty"`
 
-	PassBGColor    string `env:"PASS_BG_COLOR" envDefault:"rgb(26,26,26)"`
-	PassFGColor    string `env:"PASS_FG_COLOR" envDefault:"rgb(245,245,245)"`
-	PassLabelColor string `env:"PASS_LABEL_COLOR" envDefault:"rgb(180,180,180)"`
+	PassBGColor    string `env:"PASS_BG_COLOR" envDefault:"rgb(255,255,255)"`
+	PassFGColor    string `env:"PASS_FG_COLOR" envDefault:"rgb(28,29,77)"`
+	PassLabelColor string `env:"PASS_LABEL_COLOR" envDefault:"rgb(110,112,150)"`
 
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 }
