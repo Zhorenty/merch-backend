@@ -31,7 +31,13 @@ paths:
           description: text/html
   /privacy:
     get:
-      summary: Privacy policy and support contact for MERCH Касса (HTML)
+      summary: Privacy policy for MERCH Касса (HTML)
+      responses:
+        "200":
+          description: text/html
+  /support:
+    get:
+      summary: Support contact for MERCH Касса (HTML)
       responses:
         "200":
           description: text/html

@@ -23,7 +23,7 @@
 | Тело | JSON, UTF-8, лимит **1 МБ** |
 | Касса | `Authorization: Bearer {staff_jwt}`, секрет `CASHIER_JWT_SECRET`, TTL **12 ч** |
 | Админ | отдельный JWT, секрет `ADMIN_JWT_SECRET`, только роль `admin` |
-| Публичные | `/public/*`, `/card/add`, `/loyalty-terms`, `/privacy` — без staff-токена |
+| Публичные | `/public/*`, `/card/add`, `/loyalty-terms`, `/privacy`, `/support` — без staff-токена |
 | Cookie выдачи | `merch_cid` = `customer_id` (HttpOnly, SameSite=Lax) |
 | CORS | только `PUBLIC_BASE_URL` / `API_BASE_URL` или список `CORS_ORIGINS` |
 | HSTS | если TLS или `X-Forwarded-Proto: https` |
@@ -110,7 +110,11 @@ Rate limit. Cookie `merch_cid` и/или тот же телефон **не со�
 
 ### `GET /privacy`
 
-HTML политики конфиденциальности приложения MERCH Касса и контакт поддержки. Публичная страница без токена: её URL указывается в App Store в полях Privacy Policy URL и Support URL.
+HTML политики конфиденциальности приложения MERCH Касса. Публичная страница без токена: её URL указывается в App Store в поле Privacy Policy URL.
+
+### `GET /support`
+
+HTML службы поддержки MERCH Касса: почта и что указать в обращении. Публичная страница без токена: её URL указывается в App Store в поле Support URL.
 
 ### `GET /loyalty-terms`
 

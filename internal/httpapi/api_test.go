@@ -148,6 +148,25 @@ func TestPrivacyPage(t *testing.T) {
 	}
 }
 
+func TestSupportPage(t *testing.T) {
+	e := setup(t)
+	rec := e.do(t, http.MethodGet, "/support", "", nil)
+	if rec.Code != 200 {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, part := range []string{
+		"Поддержка MERCH Касса",
+		"Волошин Георгий Сергеевич",
+		"zhorenty@gmail.com",
+		"Что указать в письме",
+	} {
+		if !strings.Contains(body, part) {
+			t.Fatalf("missing %q in %s", part, body)
+		}
+	}
+}
+
 func TestLoyaltyTermsPage(t *testing.T) {
 	e := setup(t)
 	rec := e.do(t, http.MethodGet, "/loyalty-terms", "", nil)

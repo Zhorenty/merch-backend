@@ -88,6 +88,7 @@ func (s *Server) Handler() http.Handler {
 
 	r.Get("/loyalty-terms", s.getLoyaltyTerms)
 	r.Get("/privacy", s.getPrivacy)
+	r.Get("/support", s.getSupport)
 	r.Get("/card/add", s.getCardAddLanding)
 	r.Get("/card/add/{id}", s.getCardAdd)
 

@@ -48,6 +48,11 @@ func (s *Server) getPrivacy(w http.ResponseWriter, r *http.Request) {
 	_ = s.pages.ExecuteTemplate(w, "privacy.gohtml", nil)
 }
 
+func (s *Server) getSupport(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = s.pages.ExecuteTemplate(w, "support.gohtml", nil)
+}
+
 func (s *Server) getLoyaltyTerms(w http.ResponseWriter, r *http.Request) {
 	st := loyalty.DefaultSettings()
 	if m, err := s.Store.SettingsMap(r.Context()); err == nil {
