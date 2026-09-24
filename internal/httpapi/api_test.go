@@ -139,7 +139,7 @@ func TestPrivacyPage(t *testing.T) {
 		"Политика конфиденциальности",
 		"Волошин Георгий Сергеевич",
 		"zhorenty@gmail.com",
-		"api.merch.store",
+		"api.merch-wallet.ru",
 		"Поддержка",
 	} {
 		if !strings.Contains(body, part) {
