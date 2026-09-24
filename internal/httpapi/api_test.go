@@ -506,3 +506,17 @@ func TestRepeatEnrollHTTPCookieAndPhone(t *testing.T) {
 		t.Fatalf("duplicate phone created second card: %+v %+v", a, b)
 	}
 }
+
+func TestWalletLogoPublic(t *testing.T) {
+	e := setup(t)
+	rec := e.do(t, http.MethodGet, "/wallet/logo.png", "", nil)
+	if rec.Code != 200 {
+		t.Fatalf("logo %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Fatalf("content-type %q", ct)
+	}
+	if rec.Body.Len() < 1000 {
+		t.Fatalf("logo too small: %d", rec.Body.Len())
+	}
+}

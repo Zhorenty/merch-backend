@@ -23,7 +23,7 @@
 | Тело | JSON, UTF-8, лимит **1 МБ** |
 | Касса | `Authorization: Bearer {staff_jwt}`, секрет `CASHIER_JWT_SECRET`, TTL **12 ч** |
 | Админ | отдельный JWT, секрет `ADMIN_JWT_SECRET`, только роль `admin` |
-| Публичные | `/public/*`, `/card/add`, `/loyalty-terms`, `/privacy`, `/support` — без staff-токена |
+| Публичные | `/public/*`, `/card/add`, `/loyalty-terms`, `/privacy`, `/support`, `/wallet/logo.png` — без staff-токена |
 | Cookie выдачи | `merch_cid` = `customer_id` (HttpOnly, SameSite=Lax) |
 | CORS | только `PUBLIC_BASE_URL` / `API_BASE_URL` или список `CORS_ORIGINS` |
 | HSTS | если TLS или `X-Forwarded-Proto: https` |
@@ -115,6 +115,10 @@ HTML политики конфиденциальности приложения 
 ### `GET /support`
 
 HTML службы поддержки MERCH Касса: почта и что указать в обращении. Публичная страница без токена: её URL указывается в App Store в поле Support URL.
+
+### `GET /wallet/logo.png`
+
+PNG 660×660, слово «МЕРЧ» на белом фоне. Публичный URL без токена: его вставляют в класс Google Wallet как адрес логотипа программы (`https://api.merch-wallet.ru/wallet/logo.png`).
 
 ### `GET /loyalty-terms`
 

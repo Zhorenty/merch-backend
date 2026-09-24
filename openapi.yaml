@@ -41,6 +41,12 @@ paths:
       responses:
         "200":
           description: text/html
+  /wallet/logo.png:
+    get:
+      summary: Public square program logo for Google Wallet
+      responses:
+        "200":
+          description: image/png
   /card/add/{id}:
     get:
       summary: Issuance page (Apple / Save to phone / web QR)
