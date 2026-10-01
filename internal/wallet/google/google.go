@@ -65,13 +65,21 @@ func (c *Client) SaveURL(cust store.Customer, back string) (string, error) {
 		return "", err
 	}
 	obj := c.object(cust, back)
+	// The save link JWT must stay under 1800 characters. The terms text pushes a
+	// full object over that limit and Wallet then shows a generic error, so the
+	// object is stored via the API and the link only names it.
+	if err := c.upsertObject(context.Background(), obj); err != nil {
+		return "", err
+	}
 	claims := jwt.MapClaims{
 		"iss": sa.ClientEmail,
 		"aud": "google",
 		"typ": "savetowallet",
 		"iat": time.Now().Unix(),
 		"payload": map[string]any{
-			"loyaltyObjects": []any{obj},
+			"loyaltyObjects": []any{
+				map[string]any{"id": obj["id"], "classId": obj["classId"]},
+			},
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -84,6 +92,48 @@ func (c *Client) SaveURL(cust store.Customer, back string) (string, error) {
 		return "", err
 	}
 	return "https://pay.google.com/gp/v/save/" + signed, nil
+}
+
+func (c *Client) upsertObject(ctx context.Context, obj map[string]any) error {
+	tok, err := c.sa.TokenSource.Token()
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	id, _ := obj["id"].(string)
+	status, respBody, err := c.walletJSON(ctx, http.MethodPost, "https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject", tok.AccessToken, body)
+	if err != nil {
+		return err
+	}
+	if status == http.StatusConflict {
+		status, respBody, err = c.walletJSON(ctx, http.MethodPut, "https://walletobjects.googleapis.com/walletobjects/v1/loyaltyObject/"+id, tok.AccessToken, body)
+		if err != nil {
+			return err
+		}
+	}
+	if status >= 300 {
+		return fmt.Errorf("google loyalty object %d: %s", status, string(respBody))
+	}
+	return nil
+}
+
+func (c *Client) walletJSON(ctx context.Context, method, url, accessToken string, body []byte) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	return resp.StatusCode, b, nil
 }
 
 func (c *Client) PatchPoints(ctx context.Context, objectID string, points int) error {
