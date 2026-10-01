@@ -3,38 +3,54 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
-func scanStaff(sc scanner) (Staff, error) {
+func scanStaff(sc scanner, withStoreName bool) (Staff, error) {
 	var st Staff
 	var active int
-	err := sc.Scan(&st.ID, &st.StoreID, &st.Login, &st.Name, &st.PasswordHash, &st.PINHash, &st.Role, &active, &st.CreatedAt)
+	var deleted sql.NullTime
+	dest := []any{&st.ID, &st.StoreID, &st.Login, &st.Name, &st.PasswordHash, &st.PINHash, &st.Role, &active, &st.CreatedAt, &deleted}
+	if withStoreName {
+		dest = append(dest, &st.StoreName)
+	}
+	err := sc.Scan(dest...)
 	st.Active = active != 0
+	if deleted.Valid {
+		t := deleted.Time
+		st.DeletedAt = &t
+	}
 	return st, err
 }
 
-const staffCols = `id, store_id, login, name, password_hash, pin_hash, role, active, created_at`
+const staffCols = `staff.id, staff.store_id, staff.login, staff.name, staff.password_hash, staff.pin_hash, staff.role, staff.active, staff.created_at, staff.deleted_at`
 
 func (s *Store) GetStaffByLogin(ctx context.Context, login string) (Staff, error) {
-	row := s.DB.QueryRowContext(ctx, s.Q(`SELECT `+staffCols+` FROM staff WHERE login = ?`), login)
-	return scanStaff(row)
+	login = strings.ToLower(strings.TrimSpace(login))
+	row := s.DB.QueryRowContext(ctx, s.Q(`SELECT `+staffCols+` FROM staff WHERE staff.login = ?`), login)
+	return scanStaff(row, false)
 }
 
 func (s *Store) GetStaffByID(ctx context.Context, id string) (Staff, error) {
-	row := s.DB.QueryRowContext(ctx, s.Q(`SELECT `+staffCols+` FROM staff WHERE id = ?`), id)
-	return scanStaff(row)
+	row := s.DB.QueryRowContext(ctx, s.Q(`SELECT `+staffCols+` FROM staff WHERE staff.id = ?`), id)
+	return scanStaff(row, false)
 }
 
 func (s *Store) ListStaff(ctx context.Context) ([]Staff, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+staffCols+` FROM staff ORDER BY created_at`)
+	rows, err := s.DB.QueryContext(ctx, `
+		SELECT `+staffCols+`, COALESCE(stores.name, '')
+		FROM staff
+		LEFT JOIN stores ON stores.id = staff.store_id
+		WHERE staff.deleted_at IS NULL
+		ORDER BY staff.created_at`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []Staff
 	for rows.Next() {
-		st, err := scanStaff(rows)
+		st, err := scanStaff(rows, true)
 		if err != nil {
 			return nil, err
 		}
@@ -43,7 +59,20 @@ func (s *Store) ListStaff(ctx context.Context) ([]Staff, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) SoftDeleteStaff(ctx context.Context, id string, at time.Time) error {
+	res, err := s.DB.ExecContext(ctx, s.Q(`UPDATE staff SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL`), at.UTC(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (s *Store) CreateStaff(ctx context.Context, st Staff) error {
+	st.Login = strings.ToLower(strings.TrimSpace(st.Login))
 	_, err := s.DB.ExecContext(ctx, s.Q(`
 		INSERT INTO staff (id, store_id, login, name, password_hash, pin_hash, role, active, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
@@ -53,6 +82,7 @@ func (s *Store) CreateStaff(ctx context.Context, st Staff) error {
 }
 
 func (s *Store) UpdateStaff(ctx context.Context, st Staff) error {
+	st.Login = strings.ToLower(strings.TrimSpace(st.Login))
 	res, err := s.DB.ExecContext(ctx, s.Q(`
 		UPDATE staff SET store_id = ?, login = ?, name = ?, password_hash = ?, pin_hash = ?, role = ?, active = ?
 		WHERE id = ?`),

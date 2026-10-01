@@ -71,7 +71,7 @@ func setup(t *testing.T) *env {
 	e := &env{h: srv.Handler(), st: st, cfg: cfg}
 	e.admin = mustStaff(t, st, "admin", auth.RoleAdmin, true, "pass")
 	e.cash = mustStaff(t, st, "cash", auth.RoleCashier, true, "pass")
-	e.lead = mustStaff(t, st, "lead", auth.RoleShiftLead, true, "pass")
+	e.lead = mustStaff(t, st, "lead", auth.RoleCashier, true, "pass")
 	e.inact = mustStaff(t, st, "gone", auth.RoleCashier, false, "pass")
 	return e
 }
@@ -253,8 +253,8 @@ func TestCommitQuoteRefundHTTP(t *testing.T) {
 
 	cashTok := e.login(t, "/cashier/login", e.cash, "pass", 200)
 	rec = e.do(t, http.MethodPost, "/cashier/refund", cashTok, map[string]string{"receipt_id": rid})
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("cashier refund %d", rec.Code)
+	if rec.Code != 200 {
+		t.Fatalf("cashier refund %d %s", rec.Code, rec.Body.String())
 	}
 	rec = e.do(t, http.MethodPost, "/cashier/refund", tok, map[string]string{"receipt_id": rid})
 	if rec.Code != 200 {
@@ -393,17 +393,8 @@ func TestShiftReceiptsAndLogout(t *testing.T) {
 	}
 
 	rec = e.do(t, http.MethodPost, "/cashier/refund", cashTok, map[string]string{"receipt_id": rid})
-	if rec.Code != http.StatusForbidden {
+	if rec.Code != 200 {
 		t.Fatalf("cashier refund %d %s", rec.Code, rec.Body.String())
-	}
-	var forbidden struct {
-		Error struct {
-			Code string `json:"code"`
-		} `json:"error"`
-	}
-	_ = json.Unmarshal(rec.Body.Bytes(), &forbidden)
-	if forbidden.Error.Code != loyalty.CodeStaffForbidden {
-		t.Fatalf("forbidden %+v", forbidden)
 	}
 
 	rec = e.do(t, http.MethodPost, "/cashier/refund", leadTok, map[string]string{"receipt_id": rid})

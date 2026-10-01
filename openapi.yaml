@@ -116,7 +116,7 @@ paths:
   /cashier/refund:
     post:
       security: [{ cashierBearer: [] }]
-      description: shift_lead or admin
+      description: cashier or admin
       requestBody:
         content:
           application/json:
@@ -195,6 +195,9 @@ paths:
   /admin/staff/{id}:
     patch:
       security: [{ adminBearer: [] }]
+    delete:
+      security: [{ adminBearer: [] }]
+      description: Soft-delete. Cannot delete the current admin. Revokes sessions.
   /admin/stores:
     get:
       security: [{ adminBearer: [] }]
@@ -212,6 +215,16 @@ paths:
       security: [{ adminBearer: [] }]
   /admin/customers:
     get:
+      security: [{ adminBearer: [] }]
+      description: |
+        q matches barcode, phone, id, name.
+        status is all (default, hides deleted), active, blocked, or deleted.
+  /admin/customers/{id}:
+    delete:
+      security: [{ adminBearer: [] }]
+      description: Soft-delete. Receipts stay. Lookup, quote and commit reject the card.
+  /admin/customers/{id}/restore:
+    post:
       security: [{ adminBearer: [] }]
   /admin/customers/{id}/block:
     post:

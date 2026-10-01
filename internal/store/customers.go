@@ -13,15 +13,20 @@ import (
 func scanCustomer(s scanner) (Customer, error) {
 	var c Customer
 	var blocked int
+	var deleted sql.NullTime
 	err := s.Scan(
 		&c.ID, &c.Barcode, &c.DisplayName, &c.Phone, &c.AppleAuthToken, &c.GoogleObjectID,
-		&c.Points, &blocked, &c.CreatedAt, &c.UpdatedAt,
+		&c.Points, &blocked, &c.CreatedAt, &c.UpdatedAt, &deleted,
 	)
 	c.Blocked = blocked != 0
+	if deleted.Valid {
+		t := deleted.Time
+		c.DeletedAt = &t
+	}
 	return c, err
 }
 
-const customerCols = `id, barcode, display_name, phone, apple_auth_token, google_object_id, points, blocked, created_at, updated_at`
+const customerCols = `id, barcode, display_name, phone, apple_auth_token, google_object_id, points, blocked, created_at, updated_at, deleted_at`
 
 func (s *Store) GetCustomerByID(ctx context.Context, id string) (Customer, error) {
 	return s.queryCustomer(ctx, s.DB, `SELECT `+customerCols+` FROM customers WHERE id = ?`, id)
@@ -73,23 +78,50 @@ func (s *Store) SetCustomerBlocked(ctx context.Context, id string, blocked bool)
 	return nil
 }
 
-func (s *Store) SearchCustomers(ctx context.Context, qstr string, limit int) ([]Customer, error) {
+func (s *Store) SetCustomerDeleted(ctx context.Context, id string, deleted bool) error {
+	var deletedAt any
+	if deleted {
+		deletedAt = time.Now().UTC()
+	}
+	res, err := s.DB.ExecContext(ctx, s.Q(`UPDATE customers SET deleted_at = ?, updated_at = ? WHERE id = ?`),
+		deletedAt, time.Now().UTC(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (s *Store) SearchCustomers(ctx context.Context, qstr, status string, limit int) ([]Customer, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
 	qstr = strings.TrimSpace(qstr)
-	var rows *sql.Rows
-	var err error
-	if qstr == "" {
-		rows, err = s.DB.QueryContext(ctx, s.Q(`SELECT `+customerCols+` FROM customers ORDER BY created_at DESC LIMIT ?`), limit)
-	} else {
-		like := "%" + qstr + "%"
-		rows, err = s.DB.QueryContext(ctx, s.Q(`
-			SELECT `+customerCols+` FROM customers
-			WHERE barcode = ? OR phone = ? OR id = ? OR display_name LIKE ? OR barcode LIKE ? OR phone LIKE ?
-			ORDER BY created_at DESC LIMIT ?`),
-			qstr, qstr, qstr, like, like, like, limit)
+	where := make([]string, 0, 3)
+	args := make([]any, 0, 8)
+	switch status {
+	case "active":
+		where = append(where, "deleted_at IS NULL", "blocked = 0")
+	case "blocked":
+		where = append(where, "deleted_at IS NULL", "blocked = 1")
+	case "deleted":
+		where = append(where, "deleted_at IS NOT NULL")
+	default:
+		where = append(where, "deleted_at IS NULL")
 	}
+	if qstr != "" {
+		like := "%" + qstr + "%"
+		where = append(where, "(barcode = ? OR phone = ? OR id = ? OR display_name LIKE ? OR barcode LIKE ? OR phone LIKE ?)")
+		args = append(args, qstr, qstr, qstr, like, like, like)
+	}
+	args = append(args, limit)
+	rows, err := s.DB.QueryContext(ctx, s.Q(`
+		SELECT `+customerCols+` FROM customers
+		WHERE `+strings.Join(where, " AND ")+`
+		ORDER BY created_at DESC LIMIT ?`), args...)
 	if err != nil {
 		return nil, err
 	}

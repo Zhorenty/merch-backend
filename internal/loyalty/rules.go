@@ -12,6 +12,7 @@ const (
 	CodeExceedsShare       = "EXCEEDS_RECEIPT_SHARE"
 	CodeCustomerNotFound   = "CUSTOMER_NOT_FOUND"
 	CodeCustomerBlocked    = "CUSTOMER_BLOCKED"
+	CodeCustomerDeleted    = "CUSTOMER_DELETED"
 	CodeDuplicateReceipt   = "DUPLICATE_RECEIPT"
 	CodeStaffForbidden     = "STAFF_FORBIDDEN"
 	CodeInvalidRequest     = "INVALID_REQUEST"

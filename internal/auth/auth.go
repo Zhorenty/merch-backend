@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -11,11 +12,10 @@ import (
 )
 
 const (
-	RoleCashier   = "cashier"
-	RoleShiftLead = "shift_lead"
-	RoleAdmin     = "admin"
-	KindCashier   = "cashier"
-	KindAdmin     = "admin"
+	RoleCashier = "cashier"
+	RoleAdmin   = "admin"
+	KindCashier = "cashier"
+	KindAdmin   = "admin"
 )
 
 type Claims struct {
@@ -92,7 +92,12 @@ func Parse(secret, token string) (*Claims, error) {
 }
 
 func CanRefund(role string) bool {
-	return role == RoleShiftLead || role == RoleAdmin
+	switch role {
+	case RoleCashier, RoleAdmin, "shift_lead":
+		return true
+	default:
+		return false
+	}
 }
 
 func IsAdmin(role string) bool {
@@ -101,11 +106,15 @@ func IsAdmin(role string) bool {
 
 func ValidRole(role string) bool {
 	switch role {
-	case RoleCashier, RoleShiftLead, RoleAdmin:
+	case RoleCashier, RoleAdmin:
 		return true
 	default:
 		return false
 	}
+}
+
+func NormalizeLogin(login string) string {
+	return strings.ToLower(strings.TrimSpace(login))
 }
 
 func RandomToken(nBytes int) (string, error) {

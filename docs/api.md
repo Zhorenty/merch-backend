@@ -29,7 +29,7 @@
 | HSTS | если TLS или `X-Forwarded-Proto: https` |
 | Rate limit | `/public/enroll` ~10/мин, `/cashier/lookup` ~60/мин (по IP) |
 
-Роли staff: `cashier`, `shift_lead`, `admin`.
+Роли staff: `cashier`, `admin`. Логин сравнивается без учёта регистра и хранится в нижнем регистре.
 
 Идентификаторы:
 
@@ -154,7 +154,7 @@ User-Agent:
 
 ## Касса
 
-Префикс `/cashier`. JWT кассы: любой **active** staff (`cashier` / `shift_lead` / `admin`).
+Префикс `/cashier`. JWT кассы: любой **active** и не удалённый staff (`cashier` / `admin`).
 
 ### `POST /cashier/login`
 
@@ -168,7 +168,7 @@ User-Agent:
 {
   "token": "eyJ…",
   "expires_at": "2026-08-28T19:00:00Z",
-  "staff": { "id": "…", "name": "Анна", "role": "cashier", "store_id": "…" }
+  "staff": { "id": "…", "name": "Анна", "role": "cashier", "store_id": "…", "store_name": "MERCH" }
 }
 ```
 
@@ -270,7 +270,7 @@ Rate limit. JWT.
 
 ### `POST /cashier/refund`
 
-JWT, роли **`shift_lead` или `admin`**. Иначе `STAFF_FORBIDDEN`.
+JWT кассы, роли **`cashier` или `admin`**. Иначе `STAFF_FORBIDDEN`.
 
 ```json
 { "receipt_id": "11111111-1111-4111-8111-111111111111" }
@@ -353,11 +353,13 @@ JWT кассы, любой active staff. Чеки **точки из JWT** за �
 
 ### Staff
 
-`GET /admin/staff` → `{ "staff": [ { "id", "store_id", "login", "name", "role", "active" } ] }`
+`GET /admin/staff` → `{ "staff": [ { "id", "store_id", "store_name", "login", "name", "role", "active" } ] }`. Удалённые не возвращаются.
 
-`POST /admin/staff` — обязательны `login`, `name`, `password`, `role`. `store_id` по умолчанию флагман `00000000-0000-4000-8000-000000000001`. `pin` опционален.
+`POST /admin/staff` — обязательны `login`, `name`, `password`, `role` (`cashier` или `admin`). `store_id` по умолчанию флагман `00000000-0000-4000-8000-000000000001`, точка должна существовать. `pin` опционален. Логин сохраняется в нижнем регистре.
 
-`PATCH /admin/staff/{id}` — частичное обновление. `active: false` отзывает все JWT сотрудника.
+`PATCH /admin/staff/{id}` — частичное обновление, в том числе `store_id`. `active: false` отзывает все JWT сотрудника.
+
+`DELETE /admin/staff/{id}` — мягкое удаление (`deleted_at`), отзыв сессий, **204**. Себя удалить нельзя. Вход удалённого сотрудника запрещён. Чеки остаются.
 
 ### Точки
 
@@ -389,14 +391,20 @@ JWT кассы, любой active staff. Чеки **точки из JWT** за �
 
 ### Клиенты
 
-`GET /admin/customers?q=` — поиск по barcode, phone, id, имени. Без `q` — последние 100.
+`GET /admin/customers?q=&status=` — поиск по barcode, phone, id, имени. Без `q` — последние 100. `status`: `all` (по умолчанию, без удалённых), `active`, `blocked`, `deleted`.
 
 ```json
-{ "customers": [ { "id", "barcode", "name", "phone", "points", "blocked" } ] }
+{ "customers": [ { "id", "barcode", "name", "phone", "points", "blocked", "deleted" } ] }
 ```
 
 `POST /admin/customers/{id}/block` → `{ "id", "blocked": true }`  
-`POST /admin/customers/{id}/unblock` → `{ "id", "blocked": false }`
+`POST /admin/customers/{id}/unblock` → `{ "id", "blocked": false }`  
+Удалённую карту блокировать нельзя (`CUSTOMER_DELETED`).
+
+`DELETE /admin/customers/{id}` — мягкое удаление, чеки и баллы остаются. Ответ — объект клиента с `"deleted": true`.  
+`POST /admin/customers/{id}/restore` — снимает удаление.
+
+Удалённая карта не находится на кассе: `lookup`, `quote-redeem` и `commit` отвечают `CUSTOMER_DELETED`.
 
 `{id}` — UUID клиента.
 

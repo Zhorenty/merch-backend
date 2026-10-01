@@ -22,6 +22,8 @@ type Staff struct {
 	Role         string
 	Active       bool
 	CreatedAt    time.Time
+	DeletedAt    *time.Time
+	StoreName    string
 }
 
 type Customer struct {
@@ -35,6 +37,7 @@ type Customer struct {
 	Blocked        bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	DeletedAt      *time.Time
 }
 
 type Receipt struct {

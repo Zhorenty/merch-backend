@@ -61,6 +61,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request, kind, secret stri
 		writeErr(w, err)
 		return
 	}
+	if st.DeletedAt != nil {
+		writeError(w, http.StatusUnauthorized, loyalty.CodeUnauthorized, "Сотрудник удалён")
+		return
+	}
 	if !st.Active {
 		writeError(w, http.StatusUnauthorized, loyalty.CodeUnauthorized, "Сотрудник неактивен")
 		return
@@ -95,14 +99,19 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request, kind, secret stri
 		writeErr(w, err)
 		return
 	}
+	storeName := ""
+	if row, err := s.Store.GetStore(r.Context(), st.StoreID); err == nil {
+		storeName = row.Name
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"token":      token,
 		"expires_at": exp.UTC().Format(timeRFC3339()),
 		"staff": map[string]any{
-			"id":       st.ID,
-			"name":     st.Name,
-			"role":     st.Role,
-			"store_id": st.StoreID,
+			"id":         st.ID,
+			"name":       st.Name,
+			"role":       st.Role,
+			"store_id":   st.StoreID,
+			"store_name": storeName,
 		},
 	})
 }
@@ -245,7 +254,7 @@ func (s *Server) postLogout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) postRefund(w http.ResponseWriter, r *http.Request) {
 	st := staffFrom(r)
 	if !auth.CanRefund(st.Role) {
-		writeError(w, http.StatusForbidden, loyalty.CodeStaffForbidden, "Возврат доступен старшему смены или админу")
+		writeError(w, http.StatusForbidden, loyalty.CodeStaffForbidden, "Недостаточно прав")
 		return
 	}
 	var req refundReq

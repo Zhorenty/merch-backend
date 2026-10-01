@@ -169,7 +169,7 @@ func (s *Server) authenticateStaff(kind, secret string, allowRevoked bool) func(
 				return
 			}
 			st, err := s.Store.GetStaffByID(r.Context(), claims.Subject)
-			if err != nil || !st.Active {
+			if err != nil || !st.Active || st.DeletedAt != nil {
 				writeError(w, http.StatusUnauthorized, loyalty.CodeUnauthorized, "Сотрудник неактивен")
 				return
 			}

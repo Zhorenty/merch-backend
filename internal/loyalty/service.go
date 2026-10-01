@@ -71,6 +71,9 @@ func (s *Service) Enroll(ctx context.Context, in EnrollInput) (EnrollResult, err
 	if in.CookieID != "" {
 		c, err := s.Store.GetCustomerByID(ctx, in.CookieID)
 		if err == nil {
+			if c.DeletedAt != nil {
+				return EnrollResult{}, Err(CodeCustomerDeleted, "Карта удалена")
+			}
 			return EnrollResult{Customer: c, Created: false}, nil
 		}
 		if !store.IsNoRows(err) {
@@ -81,6 +84,9 @@ func (s *Service) Enroll(ctx context.Context, in EnrollInput) (EnrollResult, err
 	if phone != "" {
 		c, err := s.Store.GetCustomerByPhone(ctx, phone)
 		if err == nil {
+			if c.DeletedAt != nil {
+				return EnrollResult{}, Err(CodeCustomerDeleted, "Карта с этим телефоном удалена")
+			}
 			return EnrollResult{Customer: c, Created: false}, nil
 		}
 		if !store.IsNoRows(err) {
@@ -160,8 +166,8 @@ func (s *Service) Lookup(ctx context.Context, code string) (LookupResult, error)
 	if err != nil {
 		return LookupResult{}, err
 	}
-	if c.Blocked {
-		return LookupResult{}, Err(CodeCustomerBlocked, "Карта заблокирована")
+	if err := customerUsable(c); err != nil {
+		return LookupResult{}, err
 	}
 	st, err := s.settings(ctx)
 	if err != nil {
@@ -179,8 +185,8 @@ func (s *Service) Quote(ctx context.Context, code string, amountRub, requested i
 	if err != nil {
 		return Quote{}, err
 	}
-	if c.Blocked {
-		return Quote{}, Err(CodeCustomerBlocked, "Карта заблокирована")
+	if err := customerUsable(c); err != nil {
+		return Quote{}, err
 	}
 	if amountRub < 0 || requested < 0 {
 		return Quote{}, Err(CodeInvalidRequest, "Сумма и баллы не могут быть отрицательными")
@@ -203,8 +209,8 @@ func (s *Service) Commit(ctx context.Context, in CommitInput) (CommitResult, err
 	if err != nil {
 		return CommitResult{}, err
 	}
-	if c.Blocked {
-		return CommitResult{}, Err(CodeCustomerBlocked, "Карта заблокирована")
+	if err := customerUsable(c); err != nil {
+		return CommitResult{}, err
 	}
 	st, err := s.settings(ctx)
 	if err != nil {
@@ -237,8 +243,8 @@ func (s *Service) Commit(ctx context.Context, in CommitInput) (CommitResult, err
 		if e != nil {
 			return e
 		}
-		if locked.Blocked {
-			return Err(CodeCustomerBlocked, "Карта заблокирована")
+		if err := customerUsable(locked); err != nil {
+			return err
 		}
 		if err := CheckRedeem(locked.Points, in.AmountRub, in.RedeemPoints, st); err != nil {
 			return err
@@ -364,6 +370,9 @@ func (s *Service) Adjust(ctx context.Context, customerRef string, delta int, rea
 	if err != nil {
 		return store.Customer{}, err
 	}
+	if c.DeletedAt != nil {
+		return store.Customer{}, Err(CodeCustomerDeleted, "Карта удалена")
+	}
 	err = s.Store.InTx(ctx, func(tx *store.Tx) error {
 		locked, e := tx.LockCustomer(ctx, c.ID)
 		if e != nil {
@@ -396,6 +405,16 @@ func (s *Service) enqueue(ctx context.Context, customerID string) {
 		return
 	}
 	s.Jobs.Enqueue(ctx, customerID)
+}
+
+func customerUsable(c store.Customer) error {
+	if c.DeletedAt != nil {
+		return Err(CodeCustomerDeleted, "Карта удалена")
+	}
+	if c.Blocked {
+		return Err(CodeCustomerBlocked, "Карта заблокирована")
+	}
+	return nil
 }
 
 func NormalizePhone(raw string) string {

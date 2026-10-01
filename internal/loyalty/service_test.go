@@ -27,7 +27,7 @@ func testStore(t *testing.T) (*store.Store, *loyalty.Service, store.Staff) {
 	}
 	staff := store.Staff{
 		ID: uuid.NewString(), StoreID: store.DefaultStoreID(), Login: "c-" + t.Name(),
-		Name: "Кассир", PasswordHash: hash, Role: auth.RoleShiftLead, Active: true, CreatedAt: time.Now().UTC(),
+		Name: "Кассир", PasswordHash: hash, Role: auth.RoleCashier, Active: true, CreatedAt: time.Now().UTC(),
 	}
 	if err := st.CreateStaff(ctx, staff); err != nil {
 		t.Fatal(err)

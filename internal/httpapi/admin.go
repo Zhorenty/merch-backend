@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -61,14 +62,21 @@ func (s *Server) postAdjust(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func staffJSON(st store.Staff) map[string]any {
+func (s *Server) staffJSON(ctx context.Context, st store.Staff) map[string]any {
+	name := st.StoreName
+	if name == "" && st.StoreID != "" {
+		if row, err := s.Store.GetStore(ctx, st.StoreID); err == nil {
+			name = row.Name
+		}
+	}
 	return map[string]any{
-		"id":       st.ID,
-		"store_id": st.StoreID,
-		"login":    st.Login,
-		"name":     st.Name,
-		"role":     st.Role,
-		"active":   st.Active,
+		"id":         st.ID,
+		"store_id":   st.StoreID,
+		"store_name": name,
+		"login":      st.Login,
+		"name":       st.Name,
+		"role":       st.Role,
+		"active":     st.Active,
 	}
 }
 
@@ -80,7 +88,7 @@ func (s *Server) listStaff(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(list))
 	for _, st := range list {
-		out = append(out, staffJSON(st))
+		out = append(out, s.staffJSON(r.Context(), st))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"staff": out})
 }
@@ -91,12 +99,20 @@ func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	if req.Login == "" || req.Name == "" || req.Password == "" || !auth.ValidRole(req.Role) {
+	req.Login = auth.NormalizeLogin(req.Login)
+	if req.Login == "" || strings.TrimSpace(req.Name) == "" || req.Password == "" || !auth.ValidRole(req.Role) {
 		writeError(w, http.StatusUnprocessableEntity, loyalty.CodeInvalidRequest, "login, name, password и role обязательны")
 		return
 	}
 	if req.StoreID == "" {
 		req.StoreID = store.DefaultStoreID()
+	}
+	if _, err := s.Store.GetStore(r.Context(), req.StoreID); store.IsNoRows(err) {
+		writeError(w, http.StatusUnprocessableEntity, loyalty.CodeInvalidRequest, "Точка не найдена")
+		return
+	} else if err != nil {
+		writeErr(w, err)
+		return
 	}
 	ph, err := auth.HashSecret(req.Password)
 	if err != nil {
@@ -111,7 +127,7 @@ func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
 	st := store.Staff{
 		ID:           uuid.NewString(),
 		StoreID:      req.StoreID,
-		Login:        strings.TrimSpace(req.Login),
+		Login:        req.Login,
 		Name:         strings.TrimSpace(req.Name),
 		PasswordHash: ph,
 		PINHash:      pin,
@@ -126,7 +142,7 @@ func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, staffJSON(st))
+	writeJSON(w, http.StatusOK, s.staffJSON(r.Context(), st))
 }
 
 func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +156,10 @@ func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	if st.DeletedAt != nil {
+		writeError(w, http.StatusNotFound, loyalty.CodeInvalidRequest, "Сотрудник не найден")
+		return
+	}
 	var req staffReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeErr(w, err)
@@ -149,7 +169,7 @@ func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
 		st.Name = req.Name
 	}
 	if req.Login != "" {
-		st.Login = req.Login
+		st.Login = auth.NormalizeLogin(req.Login)
 	}
 	if req.Role != "" {
 		if !auth.ValidRole(req.Role) {
@@ -159,6 +179,13 @@ func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
 		st.Role = req.Role
 	}
 	if req.StoreID != "" {
+		if _, err := s.Store.GetStore(r.Context(), req.StoreID); store.IsNoRows(err) {
+			writeError(w, http.StatusUnprocessableEntity, loyalty.CodeInvalidRequest, "Точка не найдена")
+			return
+		} else if err != nil {
+			writeErr(w, err)
+			return
+		}
 		st.StoreID = req.StoreID
 	}
 	if req.Password != "" {
@@ -187,7 +214,31 @@ func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, staffJSON(st))
+	writeJSON(w, http.StatusOK, s.staffJSON(r.Context(), st))
+}
+
+func (s *Server) deleteStaff(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	actor := staffFrom(r)
+	if actor.ID == id {
+		writeError(w, http.StatusUnprocessableEntity, loyalty.CodeInvalidRequest, "Нельзя удалить свою учётную запись")
+		return
+	}
+	st, err := s.Store.GetStaffByID(r.Context(), id)
+	if store.IsNoRows(err) || (err == nil && st.DeletedAt != nil) {
+		writeError(w, http.StatusNotFound, loyalty.CodeInvalidRequest, "Сотрудник не найден")
+		return
+	}
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err := s.Store.SoftDeleteStaff(r.Context(), id, time.Now().UTC()); err != nil {
+		writeErr(w, err)
+		return
+	}
+	_ = s.Store.RevokeStaffSessions(r.Context(), id)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) listStores(w http.ResponseWriter, r *http.Request) {
@@ -280,25 +331,66 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	s.getSettings(w, r)
 }
 
+func customerJSON(c store.Customer) map[string]any {
+	return map[string]any{
+		"id":      c.ID,
+		"barcode": c.Barcode,
+		"name":    c.DisplayName,
+		"phone":   c.Phone,
+		"points":  c.Points,
+		"blocked": c.Blocked,
+		"deleted": c.DeletedAt != nil,
+	}
+}
+
 func (s *Server) listCustomers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
-	list, err := s.Store.SearchCustomers(r.Context(), q, 100)
+	status := r.URL.Query().Get("status")
+	list, err := s.Store.SearchCustomers(r.Context(), q, status, 100)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
 	out := make([]map[string]any, 0, len(list))
 	for _, c := range list {
-		out = append(out, map[string]any{
-			"id":      c.ID,
-			"barcode": c.Barcode,
-			"name":    c.DisplayName,
-			"phone":   c.Phone,
-			"points":  c.Points,
-			"blocked": c.Blocked,
-		})
+		out = append(out, customerJSON(c))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"customers": out})
+}
+
+func (s *Server) deleteCustomer(w http.ResponseWriter, r *http.Request) {
+	s.setCustomerDeleted(w, r, true)
+}
+
+func (s *Server) restoreCustomer(w http.ResponseWriter, r *http.Request) {
+	s.setCustomerDeleted(w, r, false)
+}
+
+func (s *Server) setCustomerDeleted(w http.ResponseWriter, r *http.Request, deleted bool) {
+	id := chi.URLParam(r, "id")
+	c, err := s.Store.GetCustomerByID(r.Context(), id)
+	if store.IsNoRows(err) {
+		writeError(w, http.StatusNotFound, loyalty.CodeCustomerNotFound, "Клиент не найден")
+		return
+	}
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if (c.DeletedAt != nil) == deleted {
+		writeJSON(w, http.StatusOK, customerJSON(c))
+		return
+	}
+	if err := s.Store.SetCustomerDeleted(r.Context(), id, deleted); err != nil {
+		writeErr(w, err)
+		return
+	}
+	c, err = s.Store.GetCustomerByID(r.Context(), id)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, customerJSON(c))
 }
 
 func (s *Server) blockCustomer(w http.ResponseWriter, r *http.Request) {
@@ -311,6 +403,19 @@ func (s *Server) unblockCustomer(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) setBlocked(w http.ResponseWriter, r *http.Request, blocked bool) {
 	id := chi.URLParam(r, "id")
+	c, err := s.Store.GetCustomerByID(r.Context(), id)
+	if store.IsNoRows(err) {
+		writeError(w, http.StatusNotFound, loyalty.CodeCustomerNotFound, "Клиент не найден")
+		return
+	}
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if c.DeletedAt != nil {
+		writeError(w, http.StatusUnprocessableEntity, loyalty.CodeCustomerDeleted, "Карта удалена")
+		return
+	}
 	if err := s.Store.SetCustomerBlocked(r.Context(), id, blocked); store.IsNoRows(err) {
 		writeError(w, http.StatusNotFound, loyalty.CodeCustomerNotFound, "Клиент не найден")
 		return
