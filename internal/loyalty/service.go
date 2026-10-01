@@ -80,7 +80,11 @@ func (s *Service) Enroll(ctx context.Context, in EnrollInput) (EnrollResult, err
 			return EnrollResult{}, err
 		}
 	}
+	name := strings.TrimSpace(in.Name)
 	phone := NormalizePhone(in.Phone)
+	if name == "" || !IsValidPhone(phone) {
+		return EnrollResult{}, Err(CodeInvalidRequest, "Укажите имя и телефон")
+	}
 	if phone != "" {
 		c, err := s.Store.GetCustomerByPhone(ctx, phone)
 		if err == nil {
@@ -115,7 +119,7 @@ func (s *Service) Enroll(ctx context.Context, in EnrollInput) (EnrollResult, err
 	c := store.Customer{
 		ID:             id,
 		Barcode:        code,
-		DisplayName:    strings.TrimSpace(in.Name),
+		DisplayName:    name,
 		Phone:          phone,
 		AppleAuthToken: token,
 		GoogleObjectID: oid,
@@ -415,6 +419,18 @@ func customerUsable(c store.Customer) error {
 		return Err(CodeCustomerBlocked, "Карта заблокирована")
 	}
 	return nil
+}
+
+func IsValidPhone(phone string) bool {
+	if len(phone) != 12 || !strings.HasPrefix(phone, "+7") {
+		return false
+	}
+	for _, r := range phone[2:] {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func NormalizePhone(raw string) string {

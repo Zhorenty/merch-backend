@@ -55,6 +55,8 @@ func (s *Server) postAdjust(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	title, detail := pointsActivity(req.Delta, customerLabel(c), req.Reason)
+	s.recordActivity(r.Context(), st, "", "points_adjusted", title, detail)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"customer_id": c.ID,
 		"barcode":     c.Barcode,
@@ -142,6 +144,7 @@ func (s *Server) createStaff(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	s.recordActivity(r.Context(), staffFrom(r), st.StoreID, "staff_created", "Добавлен сотрудник", st.Name+" · "+roleLabel(st.Role))
 	writeJSON(w, http.StatusOK, s.staffJSON(r.Context(), st))
 }
 
@@ -214,6 +217,7 @@ func (s *Server) patchStaff(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	s.recordActivity(r.Context(), staffFrom(r), st.StoreID, "staff_updated", "Изменён сотрудник", st.Name+" · "+roleLabel(st.Role))
 	writeJSON(w, http.StatusOK, s.staffJSON(r.Context(), st))
 }
 
@@ -238,6 +242,7 @@ func (s *Server) deleteStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.Store.RevokeStaffSessions(r.Context(), id)
+	s.recordActivity(r.Context(), actor, st.StoreID, "staff_deleted", "Удалён сотрудник", st.Name+" · "+roleLabel(st.Role))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -265,6 +270,7 @@ func (s *Server) createStore(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	s.recordActivity(r.Context(), staffFrom(r), row.ID, "store_created", "Добавлена точка", row.Name)
 	writeJSON(w, http.StatusOK, row)
 }
 
@@ -294,18 +300,26 @@ func (s *Server) patchStore(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	s.recordActivity(r.Context(), staffFrom(r), row.ID, "store_updated", "Изменена точка", row.Name)
 	writeJSON(w, http.StatusOK, row)
 }
 
 func (s *Server) deleteStore(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if err := s.Store.DeleteStore(r.Context(), id); store.IsNoRows(err) {
+	row, err := s.Store.GetStore(r.Context(), id)
+	if store.IsNoRows(err) {
 		writeError(w, http.StatusNotFound, loyalty.CodeInvalidRequest, "Точка не найдена")
 		return
-	} else if err != nil {
+	}
+	if err != nil {
 		writeErr(w, err)
 		return
 	}
+	if err := s.Store.DeleteStore(r.Context(), id); err != nil {
+		writeErr(w, err)
+		return
+	}
+	s.recordActivity(r.Context(), staffFrom(r), row.ID, "store_deleted", "Удалена точка", row.Name)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -328,6 +342,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	s.recordActivity(r.Context(), staffFrom(r), "", "settings_updated", "Изменены правила лояльности", "")
 	s.getSettings(w, r)
 }
 
@@ -390,6 +405,11 @@ func (s *Server) setCustomerDeleted(w http.ResponseWriter, r *http.Request, dele
 		writeErr(w, err)
 		return
 	}
+	kind, title := "customer_deleted", "Карта удалена"
+	if !deleted {
+		kind, title = "customer_restored", "Карта восстановлена"
+	}
+	s.recordActivity(r.Context(), staffFrom(r), "", kind, title, customerLabel(c))
 	writeJSON(w, http.StatusOK, customerJSON(c))
 }
 
@@ -423,5 +443,10 @@ func (s *Server) setBlocked(w http.ResponseWriter, r *http.Request, blocked bool
 		writeErr(w, err)
 		return
 	}
+	kind, title := "customer_blocked", "Карта заблокирована"
+	if !blocked {
+		kind, title = "customer_unblocked", "Карта разблокирована"
+	}
+	s.recordActivity(r.Context(), staffFrom(r), "", kind, title, customerLabel(c))
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "blocked": blocked})
 }

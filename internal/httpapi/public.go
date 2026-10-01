@@ -48,6 +48,14 @@ func (s *Server) enroll(w http.ResponseWriter, r *http.Request, req enrollReq, s
 		writeErr(w, err)
 		return
 	}
+	if res.Created {
+		actor := staffFrom(r)
+		title := "Выдана карта"
+		if actor.ID == "" {
+			title = "Клиент получил карту"
+		}
+		s.recordActivity(r.Context(), actor, actor.StoreID, "card_issued", title, customerLabel(res.Customer))
+	}
 	if setCookie {
 		http.SetCookie(w, &http.Cookie{
 			Name:     "merch_cid",

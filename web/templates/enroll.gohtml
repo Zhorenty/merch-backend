@@ -19,30 +19,58 @@
 <body>
   <div class="wrap">
     <h1>MERCH</h1>
-    <p>Карта лояльности. Имя и телефон — по желанию.</p>
+    <p>Карта лояльности. Имя и телефон обязательны.</p>
     <form id="f">
       <label for="name">Имя</label>
-      <input id="name" name="name" autocomplete="name" placeholder="Анна">
+      <input id="name" name="name" autocomplete="name" placeholder="Анна" required>
       <label for="phone">Телефон</label>
-      <input id="phone" name="phone" autocomplete="tel" placeholder="+7…">
+      <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (900) 000-00-00" maxlength="18" required>
       <button type="submit">Получить карту</button>
     </form>
     <p class="err" id="err" hidden></p>
     <p class="hint">Нажимая кнопку, вы соглашаетесь с <a href="{{.TermsURL}}" style="color:#ddd">правилами</a>. {{.Support}}</p>
   </div>
   <script>
+    const phoneInput = document.getElementById('phone');
+    function nationalDigits(raw) {
+      let digits = (raw || '').replace(/\D/g, '');
+      if (digits.startsWith('7') || digits.startsWith('8')) digits = digits.slice(1);
+      return digits.slice(0, 10);
+    }
+    function formatPhone(raw) {
+      const d = nationalDigits(raw);
+      if (!d) return '';
+      let out = '+7 (' + d.slice(0, 3);
+      if (d.length <= 3) return out;
+      out += ') ' + d.slice(3, 6);
+      if (d.length <= 6) return out;
+      out += '-' + d.slice(6, 8);
+      if (d.length <= 8) return out;
+      return out + '-' + d.slice(8, 10);
+    }
+    phoneInput.addEventListener('input', () => {
+      const next = formatPhone(phoneInput.value);
+      if (phoneInput.value !== next) phoneInput.value = next;
+    });
     document.getElementById('f').addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = document.getElementById('err');
       err.hidden = true;
+      const name = document.getElementById('name').value.trim();
+      const phone = phoneInput.value.trim();
+      if (!name || nationalDigits(phone).length !== 10) {
+        err.textContent = 'Укажите имя и телефон полностью: +7 и 10 цифр';
+        err.hidden = false;
+        return;
+      }
       try {
         const res = await fetch('/public/enroll', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           credentials: 'same-origin',
           body: JSON.stringify({
-            name: document.getElementById('name').value,
-            phone: document.getElementById('phone').value
+            name: name,
+            phone: phone
           })
         });
         const data = await res.json();

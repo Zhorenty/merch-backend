@@ -105,6 +105,7 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/refund", s.postRefund)
 			r.Post("/enroll", s.postCashierEnroll)
 			r.Get("/receipts", s.getShiftReceipts)
+			r.Get("/activity", s.getCashierActivity)
 		})
 	})
 
@@ -129,6 +130,7 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/customers/{id}/restore", s.restoreCustomer)
 			r.Post("/customers/{id}/block", s.blockCustomer)
 			r.Post("/customers/{id}/unblock", s.unblockCustomer)
+			r.Get("/activity", s.getAdminActivity)
 		})
 	})
 

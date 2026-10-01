@@ -194,6 +194,10 @@ func (s *Server) postCommit(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	if !res.IdempotentReplay {
+		title, detail := receiptActivity(req.ReceiptAmountRub, res.RedeemPoints, res.EarnPoints, res.Barcode)
+		s.recordActivity(r.Context(), st, storeID, "receipt_committed", title, detail)
+	}
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -266,6 +270,9 @@ func (s *Server) postRefund(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, err)
 		return
+	}
+	if !res.IdempotentReplay {
+		s.recordActivity(r.Context(), st, st.StoreID, "receipt_refunded", "Возврат чека", req.ReceiptID)
 	}
 	writeJSON(w, http.StatusOK, res)
 }

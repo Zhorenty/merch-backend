@@ -305,7 +305,7 @@ func TestShiftReceiptsAndLogout(t *testing.T) {
 		Barcode    string `json:"barcode"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &enrolled)
-	rec = e.do(t, http.MethodPost, "/public/enroll", "", map[string]string{"name": "", "phone": "+79001112244"})
+	rec = e.do(t, http.MethodPost, "/public/enroll", "", map[string]string{"name": "Пётр", "phone": "+79001112244"})
 	if rec.Code != 200 {
 		t.Fatal(rec.Body.String())
 	}

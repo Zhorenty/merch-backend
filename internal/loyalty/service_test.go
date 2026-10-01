@@ -38,6 +38,9 @@ func testStore(t *testing.T) (*store.Store, *loyalty.Service, store.Staff) {
 
 func enroll(t *testing.T, svc *loyalty.Service, name, phone string) store.Customer {
 	t.Helper()
+	if phone == "" {
+		phone = "+79000000000"
+	}
 	res, err := svc.Enroll(context.Background(), loyalty.EnrollInput{Name: name, Phone: phone})
 	if err != nil {
 		t.Fatal(err)
@@ -173,6 +176,26 @@ func TestRefundIdempotent(t *testing.T) {
 	// after refund: reverse earn 200, return 500 → 200-200+500 = 500
 	if a.Points != 500 {
 		t.Fatalf("points after refund=%d want 500", a.Points)
+	}
+}
+
+func TestEnrollRejectsIncompletePhone(t *testing.T) {
+	_, svc, _ := testStore(t)
+	_, err := svc.Enroll(context.Background(), loyalty.EnrollInput{Name: "Анна", Phone: "123"})
+	if !loyalty.Is(err, loyalty.CodeInvalidRequest) {
+		t.Fatalf("incomplete phone: %v", err)
+	}
+	_, err = svc.Enroll(context.Background(), loyalty.EnrollInput{Name: "Анна", Phone: "+7 (900) 111-22"})
+	if !loyalty.Is(err, loyalty.CodeInvalidRequest) {
+		t.Fatalf("short phone: %v", err)
+	}
+	_, err = svc.Enroll(context.Background(), loyalty.EnrollInput{Name: "", Phone: "+79001112233"})
+	if !loyalty.Is(err, loyalty.CodeInvalidRequest) {
+		t.Fatalf("empty name: %v", err)
+	}
+	_, err = svc.Enroll(context.Background(), loyalty.EnrollInput{Name: "Анна", Phone: ""})
+	if !loyalty.Is(err, loyalty.CodeInvalidRequest) {
+		t.Fatalf("empty phone: %v", err)
 	}
 }
 
