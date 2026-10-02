@@ -21,8 +21,8 @@
 | | |
 |---|---|
 | Тело | JSON, UTF-8, лимит **1 МБ** |
-| Касса | `Authorization: Bearer {staff_jwt}`, секрет `CASHIER_JWT_SECRET`, TTL **12 ч** |
-| Админ | отдельный JWT, секрет `ADMIN_JWT_SECRET`, только роль `admin` |
+| Касса | `Authorization: Bearer {staff_jwt}`, секрет `CASHIER_JWT_SECRET`, TTL **30 суток** (`CASHIER_JWT_TTL`, по умолчанию `720h`) |
+| Админ | отдельный JWT, секрет `ADMIN_JWT_SECRET`, тот же TTL (`ADMIN_JWT_TTL`), только роль `admin` |
 | Публичные | `/public/*`, `/card/add`, `/loyalty-terms`, `/privacy`, `/support`, `/wallet/logo.png` — без staff-токена |
 | Cookie выдачи | `merch_cid` = `customer_id` (HttpOnly, SameSite=Lax) |
 | CORS | только `PUBLIC_BASE_URL` / `API_BASE_URL` или список `CORS_ORIGINS` |

@@ -10,15 +10,17 @@ import (
 
 // Config is loaded from the process environment. Secrets stay out of the repo.
 type Config struct {
-	HTTPAddr         string        `env:"HTTP_ADDR" envDefault:":8080"`
-	APIBaseURL       string        `env:"API_BASE_URL" envDefault:"http://localhost:8080"`
-	PublicBaseURL    string        `env:"PUBLIC_BASE_URL" envDefault:"http://localhost:8080"`
-	CORSOrigins      string        `env:"CORS_ORIGINS"`
-	DatabaseURL      string        `env:"DATABASE_URL" envDefault:"sqlite:./data/merch.db"`
-	CashierJWTSecret string        `env:"CASHIER_JWT_SECRET" envDefault:"dev-cashier-secret-change-me"`
-	AdminJWTSecret   string        `env:"ADMIN_JWT_SECRET" envDefault:"dev-admin-secret-change-me"`
-	CashierJWTTTL    time.Duration `env:"CASHIER_JWT_TTL" envDefault:"12h"`
-	AdminJWTTTL      time.Duration `env:"ADMIN_JWT_TTL" envDefault:"12h"`
+	HTTPAddr         string `env:"HTTP_ADDR" envDefault:":8080"`
+	APIBaseURL       string `env:"API_BASE_URL" envDefault:"http://localhost:8080"`
+	PublicBaseURL    string `env:"PUBLIC_BASE_URL" envDefault:"http://localhost:8080"`
+	CORSOrigins      string `env:"CORS_ORIGINS"`
+	DatabaseURL      string `env:"DATABASE_URL" envDefault:"sqlite:./data/merch.db"`
+	CashierJWTSecret string `env:"CASHIER_JWT_SECRET" envDefault:"dev-cashier-secret-change-me"`
+	AdminJWTSecret   string `env:"ADMIN_JWT_SECRET" envDefault:"dev-admin-secret-change-me"`
+	// 720h = 30 days. A register phone stays signed in across shifts.
+	// Deactivating staff still revokes every session immediately.
+	CashierJWTTTL time.Duration `env:"CASHIER_JWT_TTL" envDefault:"720h"`
+	AdminJWTTTL   time.Duration `env:"ADMIN_JWT_TTL" envDefault:"720h"`
 
 	AdminBootstrapLogin    string `env:"ADMIN_BOOTSTRAP_LOGIN" envDefault:"admin"`
 	AdminBootstrapPassword string `env:"ADMIN_BOOTSTRAP_PASSWORD" envDefault:"changeme"`

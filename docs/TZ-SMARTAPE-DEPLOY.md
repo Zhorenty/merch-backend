@@ -145,6 +145,7 @@ SQLite на проде **запрещён**. Только Postgres.
 | `DATABASE_URL` | `postgres://merch:<случайный>@postgres:5432/merch?sslmode=disable` (TLS внутри docker-сети не обязателен; снаружи Postgres нет) |
 | `CASHIER_JWT_SECRET` | ≥32 случайных байт |
 | `ADMIN_JWT_SECRET` | **другой** секрет, ≥32 байт |
+| `CASHIER_JWT_TTL` / `ADMIN_JWT_TTL` | не задавать, если хватает 30 суток (`720h`); уже выданные токены живут до своего `exp` |
 | `ADMIN_BOOTSTRAP_PASSWORD` | сильный пароль; после первого входа сменить через API / не светить в чатах |
 | `API_BASE_URL` | `https://api.{домен}` без trailing slash |
 | `PUBLIC_BASE_URL` | тот же или публичный URL страницы выдачи |

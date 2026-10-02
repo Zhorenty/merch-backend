@@ -49,7 +49,7 @@ See `.env.example`. Secrets and certificate files stay out of git.
 |---|---|
 | `DATABASE_URL` | `sqlite:./data/merch.db` or `postgres://…` |
 | `API_BASE_URL` / `PUBLIC_BASE_URL` | used in enroll URLs and `webServiceURL` |
-| `CASHIER_JWT_SECRET` / `ADMIN_JWT_SECRET` | **change in prod**; cashier JWT TTL 12h |
+| `CASHIER_JWT_SECRET` / `ADMIN_JWT_SECRET` | **change in prod**; JWT TTL `CASHIER_JWT_TTL` / `ADMIN_JWT_TTL`, default 30 days (`720h`) |
 | `APPLE_*` | empty → stub `.pkpass` + log `wallet update skipped` |
 | `GOOGLE_ISSUER_ID` / `GOOGLE_SA_JSON` | empty → no-op adapter |
 | `TERMS_URL` / `SUPPORT_CONTACT` | pass back and enroll page; empty `TERMS_URL` is `{PUBLIC_BASE_URL}/loyalty-terms` |
@@ -69,7 +69,7 @@ curl -sS -b cookies.txt -X POST http://localhost:8080/public/enroll \
   -H 'Content-Type: application/json' \
   -d '{"name":"Анна","phone":"+79001112233"}'
 
-# cashier login (12h JWT)
+# cashier login (30-day JWT)
 TOKEN=$(curl -sS -X POST http://localhost:8080/cashier/login \
   -H 'Content-Type: application/json' \
   -d '{"login":"admin","password":"changeme"}' | jq -r .token)

@@ -3,7 +3,7 @@ info:
   title: MERCH Loyalty API
   version: "1.0"
   description: |
-    Backend for MERCH store cards (TZ §9). Cashier JWT TTL 12h.
+    Backend for MERCH store cards (TZ §9). Cashier and admin JWT TTL 30 days (720h).
     Errors: `{ "error": { "code": "...", "message": "..." } }`.
 servers:
   - url: http://localhost:8080
