@@ -90,8 +90,15 @@ func (s *Server) appleUpdated(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	// since is whole seconds, updated_at has sub-second precision: round the
+	// tag UP, otherwise the same serial is returned forever with an unchanged
+	// lastUpdated and Wallet rejects the response.
+	lastUnix := last.Unix()
+	if last.Nanosecond() > 0 {
+		lastUnix++
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"lastUpdated":   strconv.FormatInt(last.Unix(), 10),
+		"lastUpdated":   strconv.FormatInt(lastUnix, 10),
 		"serialNumbers": serials,
 	})
 }

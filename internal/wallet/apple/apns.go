@@ -34,12 +34,17 @@ func NewAPNs(cfg config.Config, log *slog.Logger) *APNs {
 			Timeout: 8 * time.Second,
 		},
 	}
-	if raw, err := os.ReadFile(cfg.AppleAPNsP8); err == nil {
-		if k, err := parseP8(raw); err == nil {
-			a.key = k
-		} else if log != nil {
-			log.Warn("apns p8 parse failed", "err", err)
+	raw, err := os.ReadFile(cfg.AppleAPNsP8)
+	if err != nil {
+		if log != nil {
+			log.Error("apns p8 read failed", "path", cfg.AppleAPNsP8, "err", err)
 		}
+	} else if k, err := parseP8(raw); err != nil {
+		if log != nil {
+			log.Error("apns p8 parse failed", "err", err)
+		}
+	} else {
+		a.key = k
 	}
 	return a
 }
@@ -63,7 +68,7 @@ func parseP8(pemBytes []byte) (*ecdsa.PrivateKey, error) {
 func (a *APNs) Push(ctx context.Context, tokens []string) error {
 	if a.key == nil {
 		if a.log != nil {
-			a.log.Info("wallet update skipped", "provider", "apns")
+			a.log.Error("apns push skipped: p8 key not loaded", "tokens", len(tokens))
 		}
 		return nil
 	}
@@ -83,8 +88,8 @@ func (a *APNs) Push(ctx context.Context, tokens []string) error {
 		}
 		req.Header.Set("Authorization", "bearer "+tok)
 		req.Header.Set("apns-topic", a.cfg.ApplePassTypeID)
-		req.Header.Set("apns-push-type", "background")
-		req.Header.Set("apns-priority", "5")
+		req.Header.Set("apns-push-type", "alert")
+		req.Header.Set("apns-priority", "10")
 		resp, err := a.client.Do(req)
 		if err != nil {
 			if a.log != nil {
@@ -92,10 +97,10 @@ func (a *APNs) Push(ctx context.Context, tokens []string) error {
 			}
 			continue
 		}
-		_, _ = io.Copy(io.Discard, resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<12))
 		_ = resp.Body.Close()
 		if resp.StatusCode >= 300 && a.log != nil {
-			a.log.Warn("apns status", "code", resp.StatusCode)
+			a.log.Warn("apns status", "code", resp.StatusCode, "token", MaskToken(device), "body", string(body))
 		}
 	}
 	return nil
